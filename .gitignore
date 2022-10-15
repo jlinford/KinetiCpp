@@ -1,1 +1,5 @@
 .vscode/
+.DS_Store
+Info.plist
+*.dSYM
+test/small/main
