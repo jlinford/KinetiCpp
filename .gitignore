@@ -2,4 +2,6 @@
 .DS_Store
 Info.plist
 *.dSYM
-test/small/main
+*.o
+*.a
+*.so
