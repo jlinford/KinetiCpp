@@ -18,9 +18,7 @@ struct Model
 
     var_t ode_function(double t, var_t const & var, fix_t const & fix)
     {
-        for (size_t j=0; j<Mechanism::NREACT; ++j) {
-            
-        }
+        return var;
 #if 0
     // Compute equation rates
     for(j=0; j<EqnNr; j++) {

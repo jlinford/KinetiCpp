@@ -1,13 +1,14 @@
 #pragma once
 #include <array>
 #include "atoms.hpp"
+#include "util.hpp"
 
 
 // Chemical species atomic composition
 template <typename... Atoms>
 struct Species
 {
-
+    static constexpr size_t weight = 0;
 };
 
 template <typename... Spec>
@@ -16,15 +17,18 @@ struct SpeciesGroup
     static constexpr size_t SIZE = sizeof...(Spec);
 };
 
-template <auto N, typename Spec>
+template <auto X, typename S>
 struct Term
 {
-
+    static constexpr auto coef = X;
+    using Spec = S;
 };
 
 template <typename... Terms>
 struct Expression
-{};
+{
+
+};
 
 template <typename LHS, typename RHS, auto Rate>
 struct Reaction
@@ -45,7 +49,11 @@ struct Mechanism
     // Stoichiometric matrix: [NSPEC, NREACT]
     using stoich_mat_t = std::array<std::array<T, NREACT>, NSPEC>;
     static constexpr stoich_mat_t stoich = []() {
-        
+        stoich_mat_t stoich;
+        // for_constexpr([](auto const & rct) {
+
+        // }, react...);
+        return stoich;
     };
 };
 

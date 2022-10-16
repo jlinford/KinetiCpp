@@ -2,8 +2,12 @@
 
 namespace atoms {
 
-template <unsigned int Num>
-struct Atom {};
+using atomic_number_t = unsigned int;
+
+template <atomic_number_t N>
+struct Atom {
+    static constexpr atomic_number_t num = N;
+};
 
 // Ignore atomic mass balance
 using IGNORE = Atom<0>;
