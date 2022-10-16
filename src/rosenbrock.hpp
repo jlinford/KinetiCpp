@@ -1,5 +1,6 @@
 #include <cmath>
 #include <array>
+#include <limits>
 
 struct Ros2
 {
@@ -39,3 +40,4 @@ struct Ros2
     // Gamma_i = sum(Gamma[i,:])
     static constexpr std::array<T, 2> Gamma {G, -G};
 };
+
