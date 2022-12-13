@@ -48,43 +48,45 @@ using Plots
 # Equations are declared as tuples of `(Reactants, Products, Rate)`.
 # - Reactants and products are declared as lists of equation terms.  
 #   The terms will summed in parsing.
-# - Equation terms are declared as `String` species names as with an 
+# - Equation terms are declared as `Symbol` species names as with an 
 #   optional `Float64` term coefficient.  If omitted, the coefficient 
 #   is assumed to be 1.
 # - Reaction rates may be a `Float64` value, or a callable `rate = f(x)`.
 reactions = [
-    (["O2"],        [2, "O"],       sun -> (2.643e-10 * sun^3)),
-    (["O", "O2"],   ["O3"],         8.018e-17),
-    (["O3"],        ["O", "O2"],    sun -> (6.12e-04 * sun)),
-    (["O", "O3"],   [2, "O2"],      1.576e-15),
-    (["O3"],        ["O1D", "O2"],  sun -> (1.07e-03 * sun^2)),
-    (["O1D", "M"],  ["O", "M"],     7.11e-11),
-    (["O1D", "O3"], [2, "O2"],      1.2e-10),
-    (["NO", "O3"],  ["NO2", "O2"],  6.062e-15),
-    (["NO2", "O"],  ["NO", "O2"],   1.069e-11),
-    (["NO2"],       ["NO", "O"],    sun -> (1.289e-02 * sun))
+    ([:O2],       [2, :O],     sun -> (2.643e-10 * sun^3)),
+    ([:O, :O2],   [:O3],       8.018e-17),
+    ([:O3],       [:O, :O2],   sun -> (6.12e-04 * sun)),
+    ([:O, :O3],   [2, :O2],    1.576e-15),
+    ([:O3],       [:O1D, :O2], sun -> (1.07e-03 * sun^2)),
+    ([:O1D, :M],  [:O, :M],    7.11e-11),
+    ([:O1D, :O3], [2, :O2],    1.2e-10),
+    ([:NO, :O3],  [:NO2, :O2], 6.062e-15),
+    ([:NO2, :O],  [:NO, :O2],  1.069e-11),
+    ([:NO2],      [:NO, :O],   sun -> (1.289e-02 * sun))
 ]
 
 # Variable species concentrations change according to the law of mass action kinetics
 var_spec = [
-    "O1D", 
-    "O", 
-    "O3", 
-    "NO", 
-    "NO2"
+    :O1D, 
+    :O, 
+    :O3, 
+    :NO, 
+    :NO2
 ]
 
 # Fixed species concentrations are determined by physical factors
 fix_spec = [
-    "M", 
-    "O2"
+    :M, 
+    :O2
 ]
 
-# Assign columns of the stoichiometric matrices to species
-# The order of `spec` determines the sparsity pattern of the stoichiometric matrix.
+# Bind matrix column numbers to species symbols
+# The order of `spec` determines the sparsity pattern of the stoichiometric matrix
 # Fixed species must follow variable species in `spec`
 spec = [var_spec ; fix_spec]
-spec_num = Dict((b, a) for (a, b) in enumerate(spec))
+for (i, s) in enumerate(spec)
+    eval(:($s = $i))
+end
 
 # Convenience variables
 nvar = length(var_spec)
@@ -112,7 +114,7 @@ let
                     coef = Float64(t)
                     spec = nothing
                     continue
-                elseif t isa String
+                elseif t isa Symbol
                     if !isnothing(spec)
                         error("Invalid reaction: unexpected string: ", terms)
                     end
@@ -131,14 +133,14 @@ let
     for (i, rct) in enumerate(reactions)
         lhs, rhs, _ = rct
         for (coef, spec) in parse_terms(lhs)
-            j = spec_num[spec]
+            j = eval(spec)
             lhs_stoich[j,i] += coef
             if j <= nvar
                 agg_stoich[i,j] -= coef
             end
         end
         for (coef, spec) in parse_terms(rhs)
-            j = spec_num[spec]
+            j = eval(spec)
             rhs_stoich[j,i] += coef
             if j <= nvar
                 agg_stoich[i,j] += coef
@@ -240,7 +242,7 @@ let
 
     # Define the ODE problem.
     # Map species names to elements of the solution vector
-    ff = ODEFunction(f! ; syms=[Symbol(x) for x in spec])
+    ff = ODEFunction(f! ; syms=spec)
 
     # Solve the ODE problem
     sol = solve(ODEProblem(ff, u0, (t0, tend)), 
