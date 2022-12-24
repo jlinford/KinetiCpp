@@ -40,6 +40,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
+using LinearAlgebra
 using DifferentialEquations
 using SparseArrays
 using Plots
@@ -94,7 +95,7 @@ nfix = length(fix_spec)
 nspec = length(spec)
 nreact = length(reactions)
 
-# Allocate stoichiometric matrics
+# Stoichiometric matrics
 # LHS and RHS stoichiometric matrices are stored transposed to improve data locality
 # Aggregate stoichiometric matrix only stores variable species
 lhs_stoich = spzeros((nspec, nreact))
@@ -147,9 +148,17 @@ let
             end
         end
     end
-    # Sanity check
-    #spy(agg_stoich)
 end 
+
+# Calculate Jacobian sparsity structure
+structJ = Matrix{Bool}(I, nspec, nspec)
+let
+    for i in 1:nvar, j in 1:nspec, k in 1:nreact
+        if agg_stoich[k,i]*lhs_stoich[j,k] != 0
+            structJ[i,j] = true
+        end
+    end
+end
 
 
 """
@@ -216,6 +225,33 @@ function f!(du::AbstractVector{T}, u, p, t) where T
     du[nvar+1:nspec] .= 0
 end
 
+"""
+    fJ!(J, u, p, t)
+
+Jacobian of the ODE function.
+
+`T` is captured to allow Dual types to propogate from DifferentialEquations.jl
+"""
+function fJ!(J::AbstractArray{T}, u, p, t) where T
+    rates = calc_rates(T, t)
+    B = spzeros(T, (nreact, nvar))
+    for i in 1:nreact, j in 1:nvar
+        if lhs_stoich[j,i] != 0
+            p = rates[i]
+            p *= prod(u[1:j-1].^lhs_stoich[1:j-1,i])
+            p *= lhs_stoich[j,i] * u[j]^(lhs_stoich[j,i]-1)
+            p *= prod(u[j+1:nspec].^lhs_stoich[j+1:nspec,i])
+            B[i,j] = p
+        end
+    end
+    for i in 1:nvar, j in 1:nvar
+        if structJ[i,j]
+            J[i,j] = sum(agg_stoich[:,i] .* B[:,j])
+        end
+    end
+end
+
+
 # Time integration
 let
     # Initial concentrations
@@ -242,7 +278,7 @@ let
 
     # Define the ODE problem.
     # Map species names to elements of the solution vector
-    ff = ODEFunction(f! ; syms=spec)
+    ff = ODEFunction(f! ; jac=fJ!, jac_prototype=float.(structJ), syms=spec)
 
     # Solve the ODE problem
     sol = solve(ODEProblem(ff, u0, (t0, tend)), 
