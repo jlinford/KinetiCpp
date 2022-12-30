@@ -5,3 +5,4 @@ Info.plist
 *.o
 *.a
 *.so
+eigen-3.4.0

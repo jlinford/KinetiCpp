@@ -16,3 +16,5 @@ constexpr void for_constexpr(Body && body, Args && ... args)
 {
     (body(std::forward<Args>(args)), ...);
 }
+
+

@@ -2,15 +2,14 @@
 
 namespace atoms {
 
-using atomic_number_t = unsigned int;
-
-template <atomic_number_t N>
+template <unsigned int N>
 struct Atom {
-    static constexpr atomic_number_t num = N;
+    static constexpr unsigned int number = N;
+    static constexpr unsigned int mass = N;  // isotopes need not apply
 };
 
-// Ignore atomic mass balance
-using IGNORE = Atom<0>;
+// Zero mass balance: ignore atomic mass balance
+using ZMB = Atom<0>;
 
 // Atom definitions for mass balance calculation
 using H = Atom<1>;
