@@ -142,18 +142,19 @@ struct Ros4
 
 template <size_t N,
           typename Parameters,
-          typename LinearAlgebra,
-          template<typename, typename> typename OdeProblem>
-class Rosenbrock
+          typename LinearAlgebra>
+class RosenbrockImpl
 {
     using Vector = typename LinearAlgebra:: template Vector<N>;
     using Matrix = typename LinearAlgebra:: template Matrix<N, N>;
     using LUDecomp = typename LinearAlgebra:: template LUDecomp<Matrix>;
-    using ODE = OdeProblem<Vector, Matrix>;
 
 public:
 
-    int integrate(
+    template <typename OdeFunction, typename OdeJacobian>
+    static int integrate(
+        OdeFunction fun,
+        OdeJacobian jac,
         Vector & u,
         const double t0,
         const double tend,
@@ -194,16 +195,16 @@ public:
             h = std::min(h, std::abs(tend-t));
 
             Vector f0;
-            ODE::fun(f0, u, t);
+            fun(f0, u, t);
 
             Matrix j0;
-            ODE::jac(j0, u, t);
+            jac(j0, u, t);
 
             // Finite difference approximation of df/dt
             const double tdel = std::sqrt(eps) * std::max(delmin, std::abs(t));
             const double tdel_inv = 1.0 / tdel;
             Vector dfdt;
-            ODE::fun(dfdt, u, t+tdel);
+            fun(dfdt, u, t+tdel);
             LinearAlgebra::aymx(dfdt, tdel_inv, f0);
 
             // Step calculation
@@ -249,7 +250,7 @@ public:
                                 LinearAlgebra::axpy(ubar, alpha, K[i]);
                             }
                             double tau = t + h*Parameters::Alpha[stage];
-                            ODE::fun(fs, ubar, tau);
+                            fun(fs, ubar, tau);
                         }
                     }
                     LinearAlgebra::copy(sK, fs);

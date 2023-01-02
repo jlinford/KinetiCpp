@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <array>
 #include <functional>
 
 
@@ -65,15 +66,15 @@ struct Reaction
 };
 
 
-
+template <size_t NVar, size_t NFix, size_t NReact>
 class Mechanism
 {
     using SpeciesList = std::vector<std::reference_wrapper<Species>>;
     using ReactionList = std::vector<Reaction>;
     
-    const SpeciesList var_spc_;
-    const SpeciesList fix_spc_;
-    const ReactionList react_;
+    SpeciesList var_spc_;
+    SpeciesList fix_spc_;
+    ReactionList react_;
 
     void IndexSpecies() 
     {
@@ -90,6 +91,11 @@ class Mechanism
 
 public:
 
+    static constexpr size_t nvar = NVar;
+    static constexpr size_t nfix = NFix;
+    static constexpr size_t nspc = NVar + NFix;
+    static constexpr size_t nreact = NReact;
+
     Mechanism(
         const SpeciesList && var_spc, 
         const SpeciesList && fix_spc,
@@ -101,21 +107,6 @@ public:
             IndexSpecies();
         }
 
-    const size_t nvar() const {
-        return var_spc_.size();
-    }
-
-    const size_t nfix() const {
-        return fix_spc_.size();
-    }
-
-    const size_t nspec() const {
-        return nvar() + nfix();
-    }
-
-    const size_t nreact() const {
-        return react_.size();
-    }
 }; // Mechanism
 
 } // namespace Chem

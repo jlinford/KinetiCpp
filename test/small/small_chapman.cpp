@@ -2,7 +2,7 @@
 #include <cmath>
 #include <chem/model.hpp>
 #include <linear_algebra/eigen.hpp>
-#include <solver/rosenbrock.hpp>
+
 
 
 // A simple sunlight model
@@ -18,32 +18,14 @@ double sunlight(double t)
 }
 
 
-template <typename Vector, typename Matrix>
-struct OdeProblem
-{
-    static void fun(Vector & du, const Vector & u, const double t)
-    {
-
-    }
-
-    static void jac(Matrix & J, const Vector & u, const double t)
-    {
-
-    }
-};
-
-
-
 int main(int argc, char ** argv) 
 {   
     using Atom = chem::Atom;
-    using Species = chem::Species;
-    using Mechanism = chem::Mechanism;
-
-    const Atom & _O = Atom::O;
-    const Atom & _N = Atom::N;
+    const Atom _O = Atom::O;
+    const Atom _N = Atom::N;
 
     // Declare chemical species
+    using Species = chem::Species;
     Species O {{_O}};
     Species O1D {{_O}};
     Species O3 {{_O, _O, _O}};
@@ -63,6 +45,7 @@ int main(int argc, char ** argv)
     // <R8>  NO   + O3 = NO2 + O2 	: (6.062E-15);
     // <R9>  NO2  + O  = NO  + O2	: (1.069E-11);
     // <R10> NO2  + hv = NO  + O	: (1.289E-02) * SUN;
+    using Mechanism = chem::Mechanism<5, 2, 10>;
     Mechanism small_chapman {
         // Variable species concentrations change according to the law of mass action kinetics
         // Order determines species numbering
@@ -150,22 +133,12 @@ int main(int argc, char ** argv)
         }
     };
 
-    
-
-    // FIXME: Hack
-    constexpr size_t nspec = 7; //small_chapman.nspec();
-
     using LinearAlgebra = linear_algebra::EigenLib<double>;
-    using Vector = LinearAlgebra::Vector<nspec>;
-    using Solver = solver::Rosenbrock<nspec, solver::Ros4, LinearAlgebra, OdeProblem>;
-
-    //using Model = chem::Model<LinearAlgebra>;
-
-    // Integration time grid
-    double t0 = 12*3600;
-    double tend = 24*3600;
-
-    Vector conc {
+    using Model = chem::Model<Mechanism, LinearAlgebra>;
+    
+    Model small_model(small_chapman); 
+        
+    Model::Vector conc {
         // Initial concentrations of variable species
         9.906E+01,
         6.624E+08,
@@ -177,7 +150,7 @@ int main(int argc, char ** argv)
         1.697E+16
     };
 
-    Solver().integrate(conc, t0, tend);
+    small_model.solve<solver::Ros4>(conc, 0, 24*3600);
 
     return 0;
 }

@@ -1,13 +1,53 @@
 #pragma once
 
-#include "mechanism.hpp"
+#include <vector>
+#include <chem/mechanism.hpp>
+#include <solver/rosenbrock.hpp>
 
 
 namespace chem {
 
-// template <typename LinearAlgebra>
-// struct Model
-// {
+template <typename Mechanism, typename LinearAlgebra>
+class Model
+{
+
+public:
+
+    static constexpr size_t nvar = Mechanism::nvar;
+    static constexpr size_t nfix = Mechanism::nfix;
+    static constexpr size_t nspc = Mechanism::nspc;
+    static constexpr size_t nreact = Mechanism::nreact;
+
+    using Vector = typename LinearAlgebra:: template Vector<nspc>;
+    using Matrix = typename LinearAlgebra:: template Matrix<nspc, nspc>;
+
+    Model(const Mechanism & _mech) : 
+        mech(_mech)
+    { }
+
+    template <typename Solver, typename... Args>
+    void solve(Vector & conc, double t0, double tend, Args... arg)
+    {
+        using SolverImpl = solver::RosenbrockImpl<nspc, Solver, LinearAlgebra>;
+        SolverImpl::integrate(fun, jac, conc, t0, tend, arg...);
+    }
+
+private:
+
+    const Mechanism & mech;
+
+    static void fun(Vector & du, const Vector & u, const double t)
+    {
+
+    }
+
+    static void jac(Matrix & J, const Vector & u, const double t)
+    {
+
+    }
+    
+
+
 //     using Vector = typename LinearAlgebra:: template Vector<N>;
 //     using Matrix = typename LinearAlgebra:: template Matrix<N, N>;
 //     using LUDecomp = typename LinearAlgebra:: template LUDecomp<Matrix>;
@@ -256,7 +296,6 @@ namespace chem {
 //         return jmat;
 //     }
 
-// };
-
+}; // Model
 
 } // namespace chem
