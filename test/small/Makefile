@@ -1,7 +1,7 @@
 
 
 CXX = g++
-CXXFLAGS = -Wall -Ofast -std=c++2b -I../../src -I../../eigen-3.4.0
+CXXFLAGS = -Wall -Ofast -std=c++17 -I../../src -I../../eigen-3.4.0
 
 LD = $(CXX)
 LDFLAGS = $(CXXFLAGS)

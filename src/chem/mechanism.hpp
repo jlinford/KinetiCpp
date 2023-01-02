@@ -2,16 +2,33 @@
 
 #include <vector>
 #include <functional>
-#include "atoms.hpp"
 
 
 namespace chem {
 
 
+enum struct Atom : size_t
+{
+    // Atomic number 0 has zero mass, i.e. ignore mass balance
+    ZMB = 0,
+    // Atomic numbers
+    H,
+    He,
+    Li,
+    Be,
+    B,
+    C,
+    N,
+    O,
+    F,
+    Ne
+};
+
+
 struct Species
 {
     // Atomic composition could be useful for mass balance checks
-    using AtomList = std::vector<std::reference_wrapper<const Atom>>;
+    using AtomList = std::vector<Atom>;
     const AtomList atoms;
     
     // Species number is just a column index in the stoichiometric matrix
@@ -84,19 +101,19 @@ public:
             IndexSpecies();
         }
 
-    constexpr size_t nvar() const {
+    const size_t nvar() const {
         return var_spc_.size();
     }
 
-    constexpr size_t nfix() const {
+    const size_t nfix() const {
         return fix_spc_.size();
     }
 
-    constexpr size_t nspec() const {
+    const size_t nspec() const {
         return nvar() + nfix();
     }
 
-    constexpr size_t nreact() const {
+    const size_t nreact() const {
         return react_.size();
     }
 }; // Mechanism

@@ -40,8 +40,8 @@ int main(int argc, char ** argv)
     using Species = chem::Species;
     using Mechanism = chem::Mechanism;
 
-    const Atom & _O = chem::O;
-    const Atom & _N = chem::N;
+    const Atom & _O = Atom::O;
+    const Atom & _N = Atom::N;
 
     // Declare chemical species
     Species O {{_O}};
@@ -149,6 +149,8 @@ int main(int argc, char ** argv)
             }
         }
     };
+
+    
 
     // FIXME: Hack
     constexpr size_t nspec = 7; //small_chapman.nspec();
