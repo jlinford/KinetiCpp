@@ -139,17 +139,14 @@ struct Ros4
     };
 };
 
-
-template <size_t N,
-          typename Parameters,
-          typename LinearAlgebra>
-class RosenbrockImpl
+template <size_t N, typename P, typename LA>
+class RosenbrockImpl : public P
 {
-    using Vector = typename LinearAlgebra:: template Vector<N>;
-    using Matrix = typename LinearAlgebra:: template Matrix<N, N>;
-    using LUDecomp = typename LinearAlgebra:: template LUDecomp<Matrix>;
-
 public:
+
+    using Vector = typename LA:: template Vector<N>;
+    using Matrix = typename LA:: template Matrix<N, N>;
+    using LUDecomp = typename LA:: template LUDecomp<Matrix>;
 
     template <typename OdeFunction, typename OdeJacobian>
     static int integrate(
@@ -184,7 +181,7 @@ public:
         double h = std::min(std::max(hmin, std::max(hmin, hlim)), std::max(hmax, tend-t0));
 
         // Stage vectors
-        std::array<Vector, Parameters::S> K;
+        std::array<Vector, P::S> K;
 
         // Time integration
         while (t <= tend) {
@@ -205,25 +202,25 @@ public:
             const double tdel_inv = 1.0 / tdel;
             Vector dfdt;
             fun(dfdt, u, t+tdel);
-            LinearAlgebra::aymx(dfdt, tdel_inv, f0);
+            LA::aymx(dfdt, tdel_inv, f0);
 
             // Step calculation
             bool reject = false;
             while (true) {  
                 // Construct step matrix: hgimj = 1/(h*gamma)*I - fJ(t)
                 Matrix hgimj;
-                LinearAlgebra::iama(hgimj, 1.0/(h*Parameters::Gamma[0]), j0);
+                LA::iama(hgimj, 1.0/(h*P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                LUDecomp hgimj_decomp = LinearAlgebra::lu_decomposition(hgimj);
+                LUDecomp hgimj_decomp = LA::lu_decomposition(hgimj);
                 
                 // If decomposition is not invertable reduce step size and try again
-                if (!LinearAlgebra::invertible(hgimj_decomp)) {         
+                if (!LA::invertible(hgimj_decomp)) {         
                     double hbar = h * hfac;
                     for (size_t ndecomp=1; ndecomp<maxdecomp; ++ndecomp) {
-                        LinearAlgebra::iama(hgimj, 1.0/(hbar*Parameters::Gamma[0]), j0);
-                        LinearAlgebra::update_decomposition(hgimj_decomp, hgimj);
-                        if (LinearAlgebra::invertible(hgimj_decomp)) {
+                        LA::iama(hgimj, 1.0/(hbar*P::Gamma[0]), j0);
+                        LA::update_decomposition(hgimj_decomp, hgimj);
+                        if (LA::invertible(hgimj_decomp)) {
                             // Decomp successful
                             break;
                         } else if (ndecomp == maxdecomp-1) {
@@ -236,50 +233,50 @@ public:
                 }
 
                 // Calculate stages
-                for (size_t stage=0; stage<Parameters::S; ++stage) {
+                for (size_t stage=0; stage<P::S; ++stage) {
                     Vector & sK = K[stage];
                     Vector fs;
                     if (stage == 0) {
-                        LinearAlgebra::copy(fs, f0);
+                        LA::copy(fs, f0);
                     } else {
-                        if (Parameters::EvalF[stage]) {
+                        if (P::EvalF[stage]) {
                             Vector ubar;
-                            LinearAlgebra::copy(ubar, u);
+                            LA::copy(ubar, u);
                             for (size_t i=0; i<stage; ++i) {
-                                double alpha = Parameters::A[stage*(stage-1)/2 + i];
-                                LinearAlgebra::axpy(ubar, alpha, K[i]);
+                                double alpha = P::A[stage*(stage-1)/2 + i];
+                                LA::axpy(ubar, alpha, K[i]);
                             }
-                            double tau = t + h*Parameters::Alpha[stage];
+                            double tau = t + h*P::Alpha[stage];
                             fun(fs, ubar, tau);
                         }
                     }
-                    LinearAlgebra::copy(sK, fs);
+                    LA::copy(sK, fs);
                     for (size_t i=0; i<stage; ++i) {
-                        double Ch = Parameters::C[stage*(stage-1)/2 + i] / h;
-                        LinearAlgebra::axpy(sK, Ch, K[i]);
+                        double Ch = P::C[stage*(stage-1)/2 + i] / h;
+                        LA::axpy(sK, Ch, K[i]);
                     }
-                    if (Parameters::Gamma[stage]) {
-                        double hGamma = h * Parameters::Gamma[stage];
-                        LinearAlgebra::axpy(sK, hGamma, dfdt);
+                    if (P::Gamma[stage]) {
+                        double hGamma = h * P::Gamma[stage];
+                        LA::axpy(sK, hGamma, dfdt);
                     }
-                    LinearAlgebra::solve(hgimj_decomp, sK);
+                    LA::solve(hgimj_decomp, sK);
                 } // Stage calculation
 
                 // New solution
                 Vector udot;
-                LinearAlgebra::copy(udot, u);
-                for (size_t i=0; i<Parameters::S; ++i) {
-                    LinearAlgebra::axpy(udot, Parameters::M[i], K[i]);
+                LA::copy(udot, u);
+                for (size_t i=0; i<P::S; ++i) {
+                    LA::axpy(udot, P::M[i], K[i]);
                 }
 
                 // Estimate error
                 Vector uerr;
-                LinearAlgebra::scale(uerr, 0);
-                for (size_t i=0; i<Parameters::S; ++i) {
-                    LinearAlgebra::axpy(uerr, Parameters::E[i], K[i]);
+                LA::scale(uerr, 0);
+                for (size_t i=0; i<P::S; ++i) {
+                    LA::axpy(uerr, P::E[i], K[i]);
                 }
                 double err = 0;
-                for (size_t i=0; i<u.size(); ++i) {
+                for (decltype(u.size()) i=0; i<u.size(); ++i) {
                     double umax = std::max(std::abs(u[i]), std::abs(udot[i]));
                     double scale = abstol + reltol * umax;
                     err += (uerr[i] * uerr[i]) / (scale * scale);
@@ -287,10 +284,10 @@ public:
                 err = std::sqrt(err / u.size());
 
                 // New step size
-                double hdot = h * std::min(facmax, std::max(facmin, facsafe/std::pow(err, 1.0/Parameters::ELO)));
+                double hdot = h * std::min(facmax, std::max(facmin, facsafe/std::pow(err, 1.0/P::ELO)));
                 if ((err <= 1.0) || (h < hmin)) {
                     // Accept step and update solution
-                    LinearAlgebra::copy(u, udot);
+                    LA::copy(u, udot);
                     t += h;
                     // Set step size for next iteration
                     hdot = std::max(hmin, std::min(hdot, std::max(hmax, tend-t0)));

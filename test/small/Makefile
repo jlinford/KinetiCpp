@@ -1,17 +1,16 @@
 
 
-CXX = g++
-CXXFLAGS = -Wall -Ofast -std=c++17 -I../../src -I../../eigen-3.4.0
+CXX = g++-12
+CXXFLAGS = -Wall -Wno-class-memaccess -Ofast -mcpu=native -std=c++23 -I../../src -I../../eigen-3.4.0
 
 LD = $(CXX)
 LDFLAGS = $(CXXFLAGS)
 LIBS = -lm
 
-SRC = $(wildcard *.cpp)
-HDR = $(wildcard *.hpp)
-OBJ = $(SRC:.cpp=.o)
-
 EXE = small_chapman
+
+SRC = $(EXE).cpp
+OBJ = $(SRC:.cpp=.o)
 
 all: $(EXE)
 

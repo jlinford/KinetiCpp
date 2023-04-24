@@ -7,34 +7,22 @@
 
 namespace chem {
 
-template <typename Mechanism, typename LinearAlgebra>
+template <typename M, typename LA>
 class Model
 {
-
 public:
 
-    static constexpr size_t nvar = Mechanism::nvar;
-    static constexpr size_t nfix = Mechanism::nfix;
-    static constexpr size_t nspc = Mechanism::nspc;
-    static constexpr size_t nreact = Mechanism::nreact;
-
-    using Vector = typename LinearAlgebra:: template Vector<nspc>;
-    using Matrix = typename LinearAlgebra:: template Matrix<nspc, nspc>;
-
-    Model(const Mechanism & _mech) : 
-        mech(_mech)
-    { }
+    using Vector = typename LA:: template Vector<M::nspc>;
+    using Matrix = typename LA:: template Matrix<M::nspc, M::nspc>;
 
     template <typename Solver, typename... Args>
-    void solve(Vector & conc, double t0, double tend, Args... arg)
+    static void solve(Vector & conc, double t0, double tend, Args... arg)
     {
-        using SolverImpl = solver::RosenbrockImpl<nspc, Solver, LinearAlgebra>;
+        using SolverImpl = solver::RosenbrockImpl<M::nspc, Solver, LA>;
         SolverImpl::integrate(fun, jac, conc, t0, tend, arg...);
     }
 
 private:
-
-    const Mechanism & mech;
 
     static void fun(Vector & du, const Vector & u, const double t)
     {
