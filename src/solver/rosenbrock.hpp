@@ -140,7 +140,7 @@ struct Ros4
 };
 
 template <size_t N, typename P, typename LA>
-class RosenbrockImpl : public P
+class RosenbrockImpl
 {
 public:
 

@@ -1,4 +1,4 @@
-#include <cstdio>
+#include <iostream>
 #include <cmath>
 #include <linear_algebra/eigen.hpp>
 #include <chem/model.hpp>
@@ -8,15 +8,14 @@ double sunlight(double t)
 {
     const double sunrise = 4.5 * 3600;
     const double sunset  = 19.5 * 3600;
-    if (t < sunrise || t > sunset) {
-        return 0;
-    }
+    if (t < sunrise || t > sunset) return 0;
+    
     double tmp = std::abs((2.0*t-sunrise-sunset)/(sunset-sunrise));
     return (1.0 + std::cos(M_PI*(tmp*tmp))) / 2.0;
 }
 
 
-int main(int argc, char ** argv) 
+int main() 
 {   
     // A translation of the "Small Strato" mechanism from KPP (Sandu et al.)
     // <R1>  O2   + hv = 2O		    : (2.643E-10) * SUN*SUN*SUN;
@@ -34,8 +33,8 @@ int main(int argc, char ** argv)
     using namespace chem::atom;
 
     // Declare chemical species names
-    enum {
-        O1, O1D, O3, NO, NO2, M, O2
+    enum S {
+        O1=100, O1D, O3, NO, NO2, M, O2
     };
 
     using SmallChapman = Mechanism<
@@ -56,16 +55,17 @@ int main(int argc, char ** argv)
         },
         // Reactions and rates
         // Order determines equation numbering
-        O2 >= 2*O1          || [](double sun) { return 2.643e-10 * sun*sun*sun; },
+        O2 >= 2*O1          || [](double t) { return 2.643e-10 * std::pow(sunlight(t), 3); }
+        ,
         O1 + O2 >= O3       || 8.018e-17,
-        O3 >= O1 + O2       || [](double sun) { return 6.12e-04 * sun; },
+        O3 >= O1 + O2       || [](double t) { return 6.12e-04 * sunlight(t); },
         O1 + O3 >= 2*O2     || 1.576e-15,
-        O3 >= O1D + O2      || [](double sun) { return 1.07e-03 * sun*sun; },
+        O3 >= O1D + O2      || [](double t) { return 1.07e-03 * std::pow(sunlight(t), 2); },
         O1D + M >= O1 + M   || 7.11e-11,
         O1D + O3 >= 2*O2    || 1.2e-10,
         NO + O3 >= NO2 + O2 || 6.062e-15,
         NO2 + O1 >= NO + O2 || 1.069e-11,
-        NO2 >= NO + O1      || [](double sun) { return 1.289e-02 * sun; }
+        NO2 >= NO + O1      || [](double t) { return 1.289e-02 * sunlight(t); }
     >;
 
     using LinearAlgebra = linear_algebra::EigenLib<double>;
@@ -83,7 +83,13 @@ int main(int argc, char ** argv)
         1.697E+16
     };
 
-    Model::solve<solver::Ros4>(conc, 0, 24*3600);
+    Model::Vector du;
+    Model::fun(du, conc, 0);
+    for (int i=0; i<du.size(); ++i) {
+        std::cout << du[i] << std::endl;
+    }
+
+    // Model::solve<solver::Ros4>(conc, 0, 24*3600);
 
     return 0;
 }

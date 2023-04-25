@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
 #include <chem/mechanism.hpp>
 #include <solver/rosenbrock.hpp>
 
@@ -12,22 +11,84 @@ class Model
 {
 public:
 
-    using Vector = typename LA:: template Vector<M::nspc>;
+    template <size_t N>
+    using vector_t = typename LA:: template Vector<N>;
+
+    using Vector = vector_t<M::nspc>;
     using Matrix = typename LA:: template Matrix<M::nspc, M::nspc>;
 
     template <typename Solver, typename... Args>
-    static void solve(Vector & conc, double t0, double tend, Args... arg)
-    {
-        using SolverImpl = solver::RosenbrockImpl<M::nspc, Solver, LA>;
-        SolverImpl::integrate(fun, jac, conc, t0, tend, arg...);
+    static void solve(Vector & conc, double t0, double tend, Args... arg) {
+        solver::RosenbrockImpl<M::nspc, Solver, LA>::integrate(fun, jac, conc, t0, tend, arg...);
     }
 
-private:
+// private:
 
-    static void fun(Vector & du, const Vector & u, const double t)
-    {
+    static constexpr auto lhs_stoich = M::lhs_stoich();
+    static constexpr auto agg_stoich = M::agg_stoich();
 
+    static void fun(Vector & du, const Vector & u, const double t) {
+        Vector vardot = Vector::Zero();
+        vector_t<M::nrct> rate_prod;
+
+        auto rates = M::rates(t);
+        for_constexpr<0, M::nrct>([&](auto i) {
+            double prod = rates[i];
+            for_constexpr<0, M::nspc>([&](auto j) {
+                constexpr int lhs_exp = static_cast<int>(lhs_stoich[i*M::nspc + j]);
+                if constexpr (lhs_exp) {
+                    prod *= std::pow(u[j], lhs_exp);
+                }
+            });
+            rate_prod[i] = prod;
+        });
+
+        for_constexpr<0, M::nvar>([&](auto j) {
+            double sum = 0;
+            for_constexpr<0, M::nrct>([&](auto i) {
+                sum += agg_stoich[i*M::nvar + j] * rate_prod[i];
+            });
+            vardot[j] = sum;
+        });
+        du = vardot;
     }
+
+//     vector_t f(const vector_t & var, const vector_t & fix, const vector_t & rates)
+//     {
+//         const size_t nvar = var.size();
+//         const size_t nfix = fix.size();
+//         const size_t nrct = rates.size();
+
+//         vector_t vardot(nvar);
+//         vector_t rate_prod(nrct);
+
+//         for (size_t i=0; i<nrct; ++i) {
+//             double prod = rates[i];
+//             for (size_t j=0; j<nvar; ++j) {
+//                 int lhs_exp = (int)(mech.lhs_stoich[i][j]);
+//                 if (lhs_exp) {
+//                     prod *= std::pow(var[j], lhs_exp);
+//                 }
+//             }
+//             for (size_t j=0; j<nfix; ++j) {
+//                 int lhs_exp = (int)(mech.lhs_stoich[i][nvar+j]);
+//                 if (lhs_exp) {
+//                     prod *= std::pow(fix[j], lhs_exp);
+//                 }
+//             }
+//             rate_prod[i] = prod;
+//         }
+
+//         for (size_t j=0; j<nvar; ++j) {
+//             double sum = 0;
+//             for (size_t i=0; i<nrct; ++i) {    
+//                 sum += mech.agg_stoich[i][j] * rate_prod[i];
+//             }
+//             vardot[j] = sum;
+//         }
+
+//         return vardot;
+//     }
 
     static void jac(Matrix & J, const Vector & u, const double t)
     {
@@ -135,35 +196,6 @@ private:
 //                 }
 //             }
 //         }
-//     }
-
-//     const bool _is_var_spc(const Species & spc) {
-//         return spc.num < var_spc.size();
-//     }
-
-//     const size_t nvar() const {
-//         return var_spc.size();
-//     }
-
-//     const size_t nfix() const {
-//         return fix_spc.size();
-//     }
-
-//     const size_t nspec() const {
-//         return nvar() + nfix();
-//     }
-
-//     const size_t nreact() const {
-//         return react.size();
-//     }
-
-//     vector_t calc_rates(double t) 
-//     {
-//         vector_t rates(mech.nreact());
-//         for (size_t i=0; i<rates.size(); ++i) {
-//             rates[i] = mech.react[i].rate(t);
-//         }
-//         return rates;
 //     }
 
 //     vector_t f(const vector_t & var, const vector_t & fix, const vector_t & rates)
