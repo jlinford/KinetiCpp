@@ -1,10 +1,11 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <type_traits>
 #include <chem/expression.hpp>
 
-namespace chem {
+namespace chem { 
 namespace atom {
 
 enum AtomicSymbol : size_t
