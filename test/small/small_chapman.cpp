@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 #include <cmath>
 #include <linear_algebra/eigen.hpp>
 #include <chem/model.hpp>
@@ -34,7 +34,7 @@ int main()
 
     // Declare chemical species names
     enum S {
-        O1=100, O1D, O3, NO, NO2, M, O2
+        O1D=100, O1, O3, NO, NO2, M, O2
     };
 
     using SmallChapman = Mechanism<
@@ -71,7 +71,7 @@ int main()
     using LinearAlgebra = linear_algebra::EigenLib<double>;
     using Model = chem::Model<SmallChapman, LinearAlgebra>;
     
-    Model::Vector conc {
+    Model::vector_t<SmallChapman::nspc> conc {
         // Initial concentrations of variable species
         9.906E+01,
         6.624E+08,
@@ -83,11 +83,37 @@ int main()
         1.697E+16
     };
 
-    Model::Vector du;
-    Model::fun(du, conc, 0);
-    for (int i=0; i<du.size(); ++i) {
-        std::cout << du[i] << std::endl;
+    // auto mat = std::experimental::mdspan(Model::agg_stoich.data(), SmallChapman::nrct, SmallChapman::nvar);
+    // for (size_t i=0; i<mat.extent(0); ++i) {
+    //     for (size_t j=0; j<mat.extent(1); ++j) {
+    //         if (mat[i,j]) {
+    //             std::cout << mat[i,j] << " ";
+    //         } else {
+    //             std::cout << "." << " ";
+    //         }
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    double tt = 12*3600;
+    Model::vector_t<SmallChapman::nspc> du;
+    //Model::fun<SmallChapman::lhs_stoich(), SmallChapman::agg_stoich()>(du, conc, tt);
+    Model::fun(du, conc, tt);
+    for (auto x: du) {
+        printf("%g\n", x);
     }
+
+    // double tt = 12*3600;
+    // Model::matrix_t<SmallChapman::nspc, SmallChapman::nspc> J;
+    // Model::jac<SmallChapman::lhs_stoich(), SmallChapman::agg_stoich()> (J, conc, tt);
+    // for (int i=0; i<J.rows(); ++i) {
+    //     for (int j=0; j<J.cols(); ++j) {
+    //         printf("%16g  ", J(i,j));
+    //         //std::cout << J(i,j) << "  ";
+    //     }
+    //     //std::cout << std::endl;
+    //     printf("\n");
+    // }
 
     // Model::solve<solver::Ros4>(conc, 0, 24*3600);
 

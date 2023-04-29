@@ -2,7 +2,7 @@
 
 #include <Eigen/Dense>
 
-
+//FIXME namespace chem {  FIXME
 namespace linear_algebra {
 
 

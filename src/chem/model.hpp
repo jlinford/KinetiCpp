@@ -14,87 +14,114 @@ public:
     template <size_t N>
     using vector_t = typename LA:: template Vector<N>;
 
-    using Vector = vector_t<M::nspc>;
-    using Matrix = typename LA:: template Matrix<M::nspc, M::nspc>;
+    template <size_t Rows, size_t Cols>
+    using matrix_t = typename LA:: template Matrix<Rows, Cols>;
 
     template <typename Solver, typename... Args>
-    static void solve(Vector & conc, double t0, double tend, Args... arg) {
-        solver::RosenbrockImpl<M::nspc, Solver, LA>::integrate(fun, jac, conc, t0, tend, arg...);
+    static void solve(auto & conc, double t0, double tend, Args... arg) {
+        //solver::RosenbrockImpl<M::nspc, Solver, LA>::integrate(fun, jac, conc, t0, tend, arg...);
     }
 
 // private:
 
-    static constexpr auto lhs_stoich = M::lhs_stoich();
-    static constexpr auto agg_stoich = M::agg_stoich();
-
-    static void fun(Vector & du, const Vector & u, const double t) {
-        Vector vardot = Vector::Zero();
-        vector_t<M::nrct> rate_prod;
-
+    template <typename T> requires std::is_floating_point_v<T>
+    static constexpr bool is_nonzero(T elem) {
+        return std::abs(elem) > (10*std::numeric_limits<T>::epsilon());
+    }
+    
+    static void fun(vector_t<M::nspc>& du, const vector_t<M::nspc>& u, const double t) {
+        constexpr auto lhs = M::lhs_stoich();
+        constexpr auto agg = M::agg_stoich();
         auto rates = M::rates(t);
-        for_constexpr<0, M::nrct>([&](auto i) {
+        vector_t<M::nrct> rate_prod;
+        for_constexpr<0, lhs.nrow>([&](auto i) {
             double prod = rates[i];
-            for_constexpr<0, M::nspc>([&](auto j) {
-                constexpr int lhs_exp = static_cast<int>(lhs_stoich[i*M::nspc + j]);
-                if constexpr (lhs_exp) {
-                    prod *= std::pow(u[j], lhs_exp);
-                }
+            for_constexpr<lhs.ridx[i], lhs.ridx[i+1]>([&](auto ii) {
+                size_t j = lhs.cols[ii];
+                double lhs_exp = lhs.vals[ii];
+                prod *= std::pow(u[j], lhs_exp);
             });
             rate_prod[i] = prod;
         });
-
         for_constexpr<0, M::nvar>([&](auto j) {
             double sum = 0;
             for_constexpr<0, M::nrct>([&](auto i) {
-                sum += agg_stoich[i*M::nvar + j] * rate_prod[i];
+                constexpr double agg_coef = agg[i,j];
+                if constexpr (is_nonzero(agg_coef)) {
+                    sum += agg_coef * rate_prod[i];
+                }
             });
-            vardot[j] = sum;
+            du[j] = sum;
         });
-        du = vardot;
+        // for_constexpr<0, M::nvar>([&](auto j) {
+        //     double sum = 0;
+        //     for_constexpr<0, M::nrct>([&](auto i) {
+        //         constexpr double agg_coef = agg[i,j];
+        //         if constexpr (is_nonzero(agg_coef)) {
+        //             sum += agg_coef * rate_prod[i];
+        //         }
+        //     });
+        //     du[j] = sum;
+        // });
+        for_constexpr<0, M::nfix>([&](auto j) {
+            du[M::nvar+j] = 0;
+        });
     }
 
-//     vector_t f(const vector_t & var, const vector_t & fix, const vector_t & rates)
-//     {
-//         const size_t nvar = var.size();
-//         const size_t nfix = fix.size();
-//         const size_t nrct = rates.size();
+    template <auto lhs_stoich, auto agg_stoich>
+    static void jac(matrix_t<M::nspc, M::nspc>& J, const vector_t<M::nspc>& u, const double t) {
+        constexpr auto lhs = std::experimental::mdspan(lhs_stoich.data(), M::nrct, M::nspc);
+        constexpr auto agg = std::experimental::mdspan(agg_stoich.data(), M::nrct, M::nvar);
 
-//         vector_t vardot(nvar);
-//         vector_t rate_prod(nrct);
+        auto rates = M::rates(t);
+        // matrix_t<M::nrct, M::nvar> B;
+        std::array<double, M::nrct*M::nvar> B;
+        B.fill(0);
 
-//         for (size_t i=0; i<nrct; ++i) {
-//             double prod = rates[i];
-//             for (size_t j=0; j<nvar; ++j) {
-//                 int lhs_exp = (int)(mech.lhs_stoich[i][j]);
-//                 if (lhs_exp) {
-//                     prod *= std::pow(var[j], lhs_exp);
-//                 }
-//             }
-//             for (size_t j=0; j<nfix; ++j) {
-//                 int lhs_exp = (int)(mech.lhs_stoich[i][nvar+j]);
-//                 if (lhs_exp) {
-//                     prod *= std::pow(fix[j], lhs_exp);
-//                 }
-//             }
-//             rate_prod[i] = prod;
-//         }
+        for_constexpr<0, M::nrct>([&](auto i) {
+            for_constexpr<1, 1+M::nvar>([&](auto j) {
+                if constexpr (is_nonzero(lhs[i,j-1])) {
+                    double p = rates[i];
+                    // p *= prod(u[1:j-1].^lhs_stoich[1:j-1,i])
+                    for_constexpr<0, j-1>([&](auto k) {
+                        constexpr double lhs_exp = lhs[i,k];
+                        if constexpr (is_nonzero(lhs_exp)) {
+                            p *= std::pow(u[k], lhs_exp);
+                        }
+                    });
+                    // p *= lhs_stoich[j,i] * u[j]^(lhs_stoich[j,i]-1)
+                    double lhs_exp = lhs[i,j-1];
+                    p *= lhs_exp * std::pow(u[j-1], lhs_exp-1);
+                    // p *= prod(u[j+1:nspec].^lhs_stoich[j+1:nspec,i])
+                    for_constexpr<j.value, M::nspc>([&](auto k) {
+                        constexpr double lhs_exp = lhs[i,k];
+                        if constexpr (is_nonzero(lhs_exp)) {
+                            p *= std::pow(u[k], lhs_exp);
+                        }
+                    });
+                    B[i*M::nvar+j-1] = p;
+                }
+            });
+        });
 
-//         for (size_t j=0; j<nvar; ++j) {
-//             double sum = 0;
-//             for (size_t i=0; i<nrct; ++i) {    
-//                 sum += mech.agg_stoich[i][j] * rate_prod[i];
-//             }
-//             vardot[j] = sum;
-//         }
-
-//         return vardot;
-//     }
-
-    static void jac(Matrix & J, const Vector & u, const double t)
-    {
-
+        // std::array<double, M::nvar*M::nvar> Jtmp;
+        for (size_t k=0; k<M::nrct; ++k) {
+            for (size_t i=0; i<M::nvar; ++i) {
+                for (size_t j=0; j<M::nvar; ++j) {
+                    if (i == j || is_nonzero(agg[k,i]*lhs[k,j])) {
+                        // J[i,j] = sum(agg_stoich[:,i] .* B[:,j])
+                        double sum = 0;
+                        for (size_t ii=0; ii<M::nrct; ++ii) {
+                            //sum += agg[ii,i] * B[ii,j];
+                            sum += agg[ii,i] * B[ii*M::nvar+j];
+                        }
+                        // Jtmp[i*M::nvar+j] = sum;
+                        J(i,j) = sum;
+                    }
+                }
+            }
+        }
     }
-    
 
 
 //     using Vector = typename LinearAlgebra:: template Vector<N>;
@@ -143,30 +170,7 @@ public:
     
 //     void _construct_stoichiometric_matrix()
 //     {
-//         lhs_stoich.resize(nreact());
-//         rhs_stoich.resize(nreact());
-//         agg_stoich.resize(nreact());
-        
-//         for (size_t i=0; i<react.size(); ++i) {
-//             const Reaction & rct = react[i];
 
-//             lhs_stoich[i].resize(nspec(), 0);
-//             rhs_stoich[i].resize(nspec(), 0);
-//             agg_stoich[i].resize(nvar(), 0);
-            
-//             for (const Term & t : rct.lhs) {
-//                     lhs_stoich[i][t.spc.num] += t.coef;
-//                 if (_is_var_spc(t.spc)) {
-//                     agg_stoich[i][t.spc.num] -= t.coef;
-//                 }
-//             }
-//             for (const Term & t : rct.rhs) {
-//                     rhs_stoich[i][t.spc.num] += t.coef;
-//                 if (_is_var_spc(t.spc)) {
-//                     agg_stoich[i][t.spc.num] += t.coef;
-//                 }
-//             }
-//         }
 //         size_t nz = 0;
 //         lhs_stoich_rank.resize(nreact());
 //         for (size_t i=0; i<nreact(); ++i) {
@@ -196,124 +200,6 @@ public:
 //                 }
 //             }
 //         }
-//     }
-
-//     vector_t f(const vector_t & var, const vector_t & fix, const vector_t & rates)
-//     {
-//         const size_t nvar = var.size();
-//         const size_t nfix = fix.size();
-//         const size_t nrct = rates.size();
-
-//         for (auto x : var) {
-//             printf("%g\n", x);
-//         }
-//         for (auto x : fix) {
-//             printf("%g\n", x);
-//         }
-
-//         vector_t vardot(nvar);
-//         vector_t rate_prod(nrct);
-
-//         printf("=====\n");
-//         for (auto x : rates) {
-//             printf("%g\n", x);
-//         }
-
-//         printf("=====\n");
-//         for (size_t i=0; i<nrct; ++i) {
-//             for (size_t j=0; j<(nvar+nfix); ++j) {
-//                 printf("%4g", mech.lhs_stoich[i][j]);
-//             }
-//             printf("\n");
-//         }
-//         printf("=====\n");
-
-//         for (size_t i=0; i<nrct; ++i) {
-//             double prod = rates[i];
-//             for (size_t j=0; j<nvar; ++j) {
-//                 int lhs_exp = (int)(mech.lhs_stoich[i][j]);
-//                 if (lhs_exp) {
-//                     prod *= std::pow(var[j], lhs_exp);
-//                 }
-//             }
-//             for (size_t j=0; j<nfix; ++j) {
-//                 int lhs_exp = (int)(mech.lhs_stoich[i][nvar+j]);
-//                 if (lhs_exp) {
-//                     prod *= std::pow(fix[j], lhs_exp);
-//                 }
-//             }
-//             rate_prod[i] = prod;
-//         }
-
-//         printf("-------rate_prod-------\n");
-//         for (auto x : rate_prod) {
-//             printf("%g\n", x);
-//         }
-//         printf("-------END rate_prod-------\n");
-
-//         for (size_t j=0; j<nvar; ++j) {
-//             double sum = 0;
-//             for (size_t i=0; i<nrct; ++i) {    
-//                 sum += mech.agg_stoich[i][j] * rate_prod[i];
-//             }
-//             vardot[j] = sum;
-//         }
-
-//         for (auto x : vardot) {
-//             printf("%g\n", x);
-//         }
-//         exit(1);
-
-
-//         return vardot;
-//     }
-
-//     matrix_t jac(const vector_t & var, const vector_t & fix, const vector_t & rates)
-//     {
-//         matrix_t jmat;
-//         vector_t b(mech.lhs_stoich_rank.size());
-
-//         const size_t nvar = var.size();
-//         const size_t nfix = fix.size();
-//         const size_t nrct = rates.size();
-
-//         for (size_t i=0; i<nrct; ++i) {
-//             for (size_t j=0; j<nvar; ++j) {
-//                 if (mech.lhs_stoich[i][j] == 0)
-//                     continue;
-//                 double prod = rates[i] * mech.lhs_stoich[i][j];
-//                 for (size_t k=0; k<nvar; ++k) {
-//                     double m = (int)mech.lhs_stoich[i][k] - (k == j ? 1 : 0);
-//                     for (size_t kk=1; kk<=m; ++kk) {
-//                         prod *= var[k];
-//                     }
-//                 }
-//                 for (size_t k=0; k<nfix; ++k) {
-//                     for (size_t kk=1; kk<=(int)mech.lhs_stoich[i][nvar+k]; ++kk) {
-//                         prod *= fix[k];
-//                     }
-//                 }
-//                 b[mech.lhs_stoich_rank[i][j]-1] = prod;
-//             }
-//         }
-
-//         jmat.resize(nvar);
-//         for (size_t i=0; i<nvar; ++i) {
-//             jmat[i].resize(nvar);
-//             for (size_t j=0; j<nvar; ++j) {
-//                 if (!mech.jac_struct[i][j])
-//                     continue;
-//                 double sum = 0;
-//                 for (size_t k=0; k<nrct; ++k) {
-//                     if (mech.agg_stoich[k][i] && mech.lhs_stoich_rank[k][j]) {
-//                         sum += mech.agg_stoich[k][i] * b[mech.lhs_stoich_rank[k][j]-1];
-//                     }
-//                 }
-//                 jmat[i][j] = sum;
-//             }
-//         }
-
-//         return jmat;
 //     }
 
 }; // Model

@@ -1,29 +1,32 @@
 #pragma once
 
 #include <array>
-#include <tuple>
+#include <vector>
 #include <algorithm>
 #include <concepts>
 #include <mdspan.hpp>
 #include <chem/atom.hpp>
 #include <chem/expression.hpp>
 #include <chem/util.hpp>
-
+#include <linear_algebra/matrix.hpp>
 
 namespace chem {
 
-template <std::equality_comparable ID>
+template <typename T>
+concept SpeciesId = std::is_enum_v<T>;
+
+template <SpeciesId ID>
 struct Species
 {
     using type = Species<ID>;
     using id_type = ID;
 
+    const id_type id;
+    const double mass;
+
     constexpr operator id_type() const {
         return static_cast<id_type>(id);
     }
-
-    const id_type id;
-    const double mass;
 };
 
 template <typename L, typename R>
@@ -40,12 +43,12 @@ struct Reaction
     const Rate rate;
 };
 
-template <typename ID, typename T>
+template <typename ID, Term T>
 static constexpr auto operator||(ID lhs, T rhs) {
     return Species<ID> {lhs, atom::atomic_mass(rhs)};
 }
 
-template <typename L, typename R>
+template <Term L, Term R>
 static constexpr auto operator>=(L lhs, R rhs) {
     return Equation {lhs, rhs};
 }
@@ -89,71 +92,45 @@ public:
     }
 
     static constexpr auto lhs_stoich() {
-        std::array<double, nrct*nspc> data;
-        auto mat = std::experimental::mdspan(data.data(), nrct, nspc);
-        data.fill(0);
-        constexpr std::tuple react {React...};
-        for_constexpr<0, nrct>([&](auto i) {
-            constexpr auto terms = equation_terms(std::get<i>(react).eqn.lhs);
-            for_constexpr<0, terms.size()>([&](auto n) {
-                const size_t j = spc_num<terms[n].first>();
-                mat[i,j] += terms[n].second;
-            });
-        });
-        return data;
+        return build_stoich_csr<true, false>();
     }
 
     static constexpr auto rhs_stoich() {
-        std::array<double, nrct*nspc> data;
-        auto mat = std::experimental::mdspan(data.data(), nrct, nspc);
-        data.fill(0);
-        constexpr std::tuple react {React...};
-        for_constexpr<0, nrct>([&](auto i) {
-            constexpr auto terms = equation_terms(std::get<i>(react).eqn.rhs);
-            for_constexpr<0, terms.size()>([&](auto n) {
-                const size_t j = spc_num<terms[n].first>();
-                mat[i,j] += terms[n].second;
-            });
-        });
-        return data;
+        return build_stoich_csr<false, true>();
     }
 
     static constexpr auto agg_stoich() {
-        std::array<double, nrct*nspc> data;
-        auto mat = std::experimental::mdspan(data.data(), nrct, nspc);
-        data.fill(0);
-        constexpr std::tuple react {React...};
-        for_constexpr<0, nrct>([&](auto i) {
-            constexpr auto eqn = std::get<i>(react).eqn;
-            constexpr auto lhs_terms = equation_terms(eqn.lhs);
-            for_constexpr<0, lhs_terms.size()>([&](auto n) {
-                constexpr auto id = lhs_terms[n].first;
-                constexpr auto coef = lhs_terms[n].second;
-                const size_t j = spc_num<id>();
-                if constexpr (is_var_spc<id>()) {
-                    mat[i,j] -= coef;
-                }
-            });
-            constexpr auto rhs_terms = equation_terms(eqn.rhs);
-            for_constexpr<0, rhs_terms.size()>([&](auto n) {
-                constexpr auto id = rhs_terms[n].first;
-                constexpr auto coef = rhs_terms[n].second;
-                const size_t j = spc_num<id>();
-                if constexpr (is_var_spc<id>()) {
-                    mat[i,j] += coef;
-                }
-            });
-        });
-        return data;
-    }
-
-    static constexpr auto lhs_stoich_rank() {
-        
+        return build_stoich_csr<true, true>();
     }
 
 private:
 
     using term_type = std::pair<species_id_type, double>;
+
+    static constexpr bool is_nonzero(double x) {
+        return std::abs(x) > 10*std::numeric_limits<double>::epsilon();
+    }
+
+    static constexpr bool is_var_spc(species_id_type id) {
+        auto it = std::find(Var.begin(), Var.end(), id);
+        return it != Var.end();
+    }
+
+    template <Arithmetic Rate, typename... Args>
+    static constexpr double calc_rate(const Rate& rconst, Args&&...) {
+        return rconst;
+    }
+
+    template <typename Rate, typename... Args>
+    requires std::is_invocable_v<Rate, Args...>
+    static constexpr double calc_rate(const Rate& rfun, Args&&... args) {
+        return rfun(args...);
+    }
+
+    template <typename Rate, typename... Args>
+    static constexpr double calc_rate(const Rate&, Args&&...) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
 
     static constexpr auto equation_terms(const species_id_type& expr) {
         return std::array {term_type{expr, 1.0}};
@@ -200,42 +177,89 @@ private:
         return terms;
     }
 
-    template <Arithmetic Rate, typename... Args>
-    static constexpr double calc_rate(const Rate& rconst, Args&&...) {
-        return rconst;
-    }
-
-    template <typename Rate, typename... Args>
-    requires std::is_invocable_v<Rate, Args...>
-    static constexpr double calc_rate(const Rate& rfun, Args&&... args) {
-        return rfun(args...);
-    }
-
-    template <typename Rate, typename... Args>
-    static constexpr double calc_rate(const Rate&, Args&&...) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    template <species_id_type ID>
-    static constexpr size_t spc_num() {
-        for (size_t i=0; i<spc_index.size(); ++i) {
-            if (spc_index[i] == ID) {
-                return i;
+    template <bool lhs, bool rhs>
+    static constexpr size_t count_nonzeros() {
+        size_t nz = 0;
+        foreach([&](auto rct) {
+            std::array<bool, nspc> row;
+            row.fill(false);
+            if constexpr (lhs && rhs) {
+                for (auto& term : equation_terms(rct.eqn.lhs)) {
+                    if (is_var_spc(term.first)) {
+                        row[spc_num(term.first)] = true;
+                    }
+                }
+                for (auto& term : equation_terms(rct.eqn.rhs)) {
+                    if (is_var_spc(term.first)) {
+                        row[spc_num(term.first)] = true;
+                    }
+                }
+            } else if constexpr (lhs) {
+                for (auto& term : equation_terms(rct.eqn.lhs)) {
+                    row[spc_num(term.first)] = true;
+                }
+            } else if constexpr (rhs) {
+                for (auto& term : equation_terms(rct.eqn.rhs)) {
+                    row[spc_num(term.first)] = true;
+                }
             }
-        }
-        return spc_index.size();
+            nz += std::count(row.begin(), row.end(), true);
+        }, React...);
+        return nz;
     }
 
-    template <species_id_type ID>
-    static constexpr bool is_var_spc() {
-        for (size_t i=0; i<Var.size(); ++i) {
-            if (static_cast<species_id_type>(Var[i]) == ID) {
-                return true;
+    template <bool lhs, bool rhs>
+    static constexpr auto build_stoich_csr() {
+        constexpr size_t rowsize = (lhs && rhs) ? nvar : nspc;
+        constexpr size_t nz = count_nonzeros<lhs, rhs>();
+
+        std::array<double, nz> vals;
+        std::array<size_t, nz> cidx;
+        std::array<size_t, nrct+1> ridx;
+        
+        size_t vals_idx = 0;
+        size_t ridx_idx = 0;
+        foreach([&](auto rct) {
+            std::array<double, rowsize> row;
+            row.fill(0);
+            if constexpr (lhs && rhs) {
+                for (auto& term : equation_terms(rct.eqn.lhs)) {
+                    if (is_var_spc(term.first)) {
+                        row[spc_num(term.first)] -= term.second;
+                    }
+                }
+                for (auto& term : equation_terms(rct.eqn.rhs)) {
+                    if (is_var_spc(term.first)) {
+                        row[spc_num(term.first)] += term.second;
+                    }
+                }
+            } else if constexpr (lhs) {
+                for (auto& term : equation_terms(rct.eqn.lhs)) {
+                    row[spc_num(term.first)] += term.second;
+                }
+            } else if constexpr (rhs) {
+                for (auto& term : equation_terms(rct.eqn.rhs)) {
+                    row[spc_num(term.first)] += term.second;
+                }
             }
-        }
-        return false;
+            ridx[ridx_idx++] = vals_idx;
+            for (size_t j=0; j<row.size(); ++j) {
+                if (is_nonzero(row[j])) {
+                    vals[vals_idx] = row[j];
+                    cidx[vals_idx] = j;
+                    vals_idx++;
+                }
+            }
+        }, React...);
+        ridx[ridx_idx] = nz;
+        return linear_algebra::CsrMatrix<double, nrct, rowsize, nz> { vals, cidx, ridx };
     }
-    
+
+    static constexpr size_t spc_num(species_id_type id) {
+        auto it = std::find(spc_index.begin(), spc_index.end(), id);
+        return it - spc_index.begin();
+    }
+
     static constexpr auto declared_order() {
         std::array<species_id_type, nspc> order;
         for (size_t i=0; i<Var.size(); ++i) {

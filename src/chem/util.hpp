@@ -4,6 +4,7 @@
 
 namespace chem {
 
+// for (i=Start; i<End; ++i)
 template <auto Start, auto End, typename B>
 static constexpr void for_constexpr(B&& body)
 {
@@ -13,47 +14,41 @@ static constexpr void for_constexpr(B&& body)
     }(std::make_index_sequence<End-Start>{});
 }
 
-// template <auto Start, auto End, auto Inc, typename B>
-// static constexpr void for_constexpr(B&& body)
-// {
-//     if constexpr (Start < End) {
-//         body(std::integral_constant<decltype(Start), Start>());
-//         for_constexpr<Start+Inc, End, Inc>(body);
-//     }
-// }
+// for (i=Start; i<End; i+=Inc) 
+template <auto Start, auto End, auto Inc, typename B>
+static constexpr void for_constexpr(B&& body)
+{
+    if constexpr (Start < End) {
+        // Need std::integral_constant to make the loop index a constexpr
+        body(std::integral_constant<decltype(Start), Start>());
+        for_constexpr<Start+Inc, End, Inc>(body);
+    }
+}
 
-// template <typename B, typename... Args>
-// static constexpr void for_constexpr(B&& body, Args&&... args)
-// {
-//     (body(std::forward<Args>(args)), ...);
-// }
-
+// // for (auto x : [tuple-like])
 // template <class B, class T>
-// static constexpr void for_constexpr(B&& body, T&& tuple)
+// static constexpr void foreach(B&& body, T&& tuple)
 // {
 //     for_constexpr<size_t(0), std::tuple_size_v<std::decay_t<T>>, size_t(1)>([&](auto i) {
 //         body(std::get<i.value>(tuple));
 //     });
 // }
 
-// template <auto Start, auto End, auto Inc, class F>
-// constexpr void constexpr_for(F&& f)
-// {
-//     if constexpr (Start < End)
-//     {
-//         f(std::integral_constant<decltype(Start), Start>());
-//         constexpr_for<Start + Inc, End, Inc>(f);
-//     }
-// }
+// for (auto x : [template_parameter_pack])
+template <typename B, typename... Args>
+static constexpr void foreach(B&& body, Args&&... args)
+{
+    (body(std::forward<Args>(args)), ...);
+}
+ 
 
-// template <class F, class Tuple>
-// constexpr void constexpr_for_tuple(F&& f, Tuple&& tuple)
-// {
-//     constexpr size_t cnt = std::tuple_size_v<std::decay_t<Tuple>>;
-
-//     constexpr_for<size_t(0), cnt, size_t(1)>([&](auto i) {
-//         f(std::get<i.value>(tuple));
-//     });
-// }
+// for (auto x : [template_parameter_pack]) with index
+template <typename B, typename... Args>
+static constexpr void indexed_foreach(B&& body, Args&&... args)
+{
+    [&]<auto... Is>(std::index_sequence<Is...>) {
+        (body(std::integral_constant<size_t, Is>(), std::forward<Args>(args)), ...);
+    }(std::make_index_sequence<sizeof...(Args)>{});
+}
 
 } // namespace chem
