@@ -151,9 +151,11 @@ let
 end 
 
 # Calculate Jacobian sparsity structure
+# Only values in (nvar x nvar) are nonzero, but we need dimensions
+# to match the length of the ODE input vector
 structJ = Matrix{Bool}(I, nspec, nspec)
 let
-    for i in 1:nvar, j in 1:nspec, k in 1:nreact
+    for i in 1:nvar, j in 1:nvar, k in 1:nreact
         if agg_stoich[k,i]*lhs_stoich[j,k] != 0
             structJ[i,j] = true
         end
@@ -267,6 +269,10 @@ let
         8.120e+16,
         1.697e+16
     ]
+
+    J = spzeros((nvar, nvar))
+    fJ!(J, u0, 0, 12*3600)
+    display(J)
 
     # Integration time in seconds
     t0 = 0 * 3600

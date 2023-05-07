@@ -1,6 +1,6 @@
 #pragma once
 
-namespace chem {
+namespace kineticpp {
 
 struct Expression {};
 
@@ -59,4 +59,4 @@ static constexpr auto operator^(L lhs, R rhs) {
     return Exponential {lhs, rhs};
 }
 
-} // namespace chem
+} // namespace kineticpp

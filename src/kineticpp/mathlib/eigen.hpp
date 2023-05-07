@@ -1,13 +1,15 @@
+// Copyright 2023, John Linford <john@redhpc.com>
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 #include <Eigen/Dense>
 
-//FIXME namespace chem {  FIXME
-namespace linear_algebra {
-
+namespace kineticpp {
+namespace mathlib {
 
 template <typename T>
-struct EigenLib
+struct EigenDense
 {
     using Scalar = T;
 
@@ -19,6 +21,17 @@ struct EigenLib
 
     template <typename Matrix>
     using LUDecomp = Eigen::FullPivLU<Eigen::Ref<Matrix>>;
+
+    template <typename Vector>
+    static constexpr size_t size(Vector & y) {
+        return y.size();
+    }
+
+    // y <- 0
+    template <typename Vector>
+    static void zero(Vector & y) {
+        y = Vector::Zero();
+    }
 
     // y <- x
     template <typename Vector>
@@ -75,4 +88,5 @@ struct EigenLib
     }
 };
 
-}
+} // namespace mathlib
+} // namespace kineticpp

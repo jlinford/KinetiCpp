@@ -1,11 +1,14 @@
+// Copyright 2023, John Linford <john@redhpc.com>
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 #include <array>
 #include <cmath>
 #include <type_traits>
-#include <chem/expression.hpp>
+#include "expression.hpp"
 
-namespace chem { 
+namespace kineticpp { 
 namespace atom {
 
 enum AtomicSymbol : size_t
@@ -176,4 +179,4 @@ static constexpr double atomic_mass(Exponential<L,R> term) {
 }
 
 } // namespace atom
-} // namespace chem
+} // namespace kineticpp

@@ -1,16 +1,20 @@
 #pragma once
 
 #include <array>
-#include <vector>
 #include <algorithm>
 #include <concepts>
-#include <mdspan.hpp>
-#include <chem/atom.hpp>
-#include <chem/expression.hpp>
-#include <chem/util.hpp>
-#include <linear_algebra/matrix.hpp>
 
-namespace chem {
+#include "atom.hpp"
+#include "expression.hpp"
+#include "matrix.hpp"
+
+namespace kineticpp {
+
+template <typename T> 
+requires std::is_floating_point_v<T>
+static constexpr bool is_nonzero(T elem) {
+    return std::abs(elem) > (10*std::numeric_limits<T>::epsilon());
+}
 
 template <typename T>
 concept SpeciesId = std::is_enum_v<T>;
@@ -48,14 +52,15 @@ static constexpr auto operator||(ID lhs, T rhs) {
     return Species<ID> {lhs, atom::atomic_mass(rhs)};
 }
 
-template <Term L, Term R>
+// template <Term L, Term R>
+template <typename L, typename R>
 static constexpr auto operator>=(L lhs, R rhs) {
-    return Equation {lhs, rhs};
+    return Equation<L, R> {lhs, rhs};
 }
 
 template <typename L, typename R, typename Rate>
 static constexpr auto operator||(Equation<L,R> lhs, Rate rhs) {
-    return Reaction {lhs, rhs};
+    return Reaction<L, R, Rate> {lhs, rhs};
 }
 
 template <typename S, size_t N>
@@ -86,6 +91,11 @@ public:
     static constexpr size_t nspc = nvar + nfix;
     static constexpr size_t nrct = sizeof...(React);
 
+    static constexpr bool is_var_spc(species_id_type id) {
+        auto it = std::find(Var.begin(), Var.end(), id);
+        return it != Var.end();
+    }
+
     template <typename... Args>
     static constexpr auto rates(Args... args) {
         return std::array<double, nrct> { calc_rate(React.rate, args...)... };
@@ -106,15 +116,6 @@ public:
 private:
 
     using term_type = std::pair<species_id_type, double>;
-
-    static constexpr bool is_nonzero(double x) {
-        return std::abs(x) > 10*std::numeric_limits<double>::epsilon();
-    }
-
-    static constexpr bool is_var_spc(species_id_type id) {
-        auto it = std::find(Var.begin(), Var.end(), id);
-        return it != Var.end();
-    }
 
     template <Arithmetic Rate, typename... Args>
     static constexpr double calc_rate(const Rate& rconst, Args&&...) {
@@ -213,9 +214,9 @@ private:
         constexpr size_t rowsize = (lhs && rhs) ? nvar : nspc;
         constexpr size_t nz = count_nonzeros<lhs, rhs>();
 
-        std::array<double, nz> vals;
-        std::array<size_t, nz> cidx;
         std::array<size_t, nrct+1> ridx;
+        std::array<size_t, nz> cols;
+        std::array<double, nz> vals;
         
         size_t vals_idx = 0;
         size_t ridx_idx = 0;
@@ -246,13 +247,13 @@ private:
             for (size_t j=0; j<row.size(); ++j) {
                 if (is_nonzero(row[j])) {
                     vals[vals_idx] = row[j];
-                    cidx[vals_idx] = j;
+                    cols[vals_idx] = j;
                     vals_idx++;
                 }
             }
         }, React...);
         ridx[ridx_idx] = nz;
-        return linear_algebra::CsrMatrix<double, nrct, rowsize, nz> { vals, cidx, ridx };
+        return CsrMatrix<double, nrct, rowsize, nz> { ridx, cols, vals };
     }
 
     static constexpr size_t spc_num(species_id_type id) {
@@ -274,4 +275,4 @@ private:
     static constexpr auto spc_index = declared_order();
 };
 
-} // namespace Chem
+} // namespace kineticpp
