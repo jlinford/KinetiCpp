@@ -1,8 +1,11 @@
 #pragma once
 
+#include <cmath>
 #include <array>
 #include <algorithm>
 #include <concepts>
+#include <type_traits>
+#include <limits>
 
 #include "atom.hpp"
 #include "expression.hpp"

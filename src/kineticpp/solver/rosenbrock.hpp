@@ -7,32 +7,11 @@
 #include <array>
 #include <limits>
 
+#include "solver/status.hpp"
+
+
 namespace kineticpp {
 namespace solver {
-
-
-enum struct ErrorCode : int
-{
-    success=0,
-    iterations=-1,
-    decomposition=-2,
-};
-
-
-static constexpr auto explain(ErrorCode code)
-{
-    switch (code) {
-        case ErrorCode::success:
-            return "Success";
-        case ErrorCode::iterations:
-            return "Maximum iterations exceeded";
-        case ErrorCode::decomposition:
-            return "Matrix decomposition failed";
-        default:
-            return "Unknown error code";
-    }
-}
-
 
 template <typename P, size_t N, typename LA>
 class Rosenbrock
@@ -63,7 +42,7 @@ public:
     static ErrorCode integrate(
         auto fun,
         auto jac,
-        auto & u,
+        Vector & u,
         double & h,
         const double t0,
         const double tend,
@@ -352,6 +331,10 @@ struct Ros4
 };
 
 } // namespace detail
+
+
+template <size_t N, typename LA>
+using Ros2 = Rosenbrock<rosenbrock_parameters::Ros2, N, LA>;
 
 template <size_t N, typename LA>
 using Ros4 = Rosenbrock<rosenbrock_parameters::Ros4, N, LA>;
