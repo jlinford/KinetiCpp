@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 
 project(
   KinetiCpp
@@ -6,6 +6,9 @@ project(
   DESCRIPTION ""
   HOMEPAGE_URL ""
   LANGUAGES CXX)
+
+# Suppress warnings about unused C compiler
+set (ignoreCC ${CMAKE_C_COMPILER})
 
 # Prevent in-source builds
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
@@ -25,7 +28,7 @@ if (KINETICPP_STANDALONE_PROJECT)
     set(CMAKE_CXX_EXTENSIONS OFF)
 
     # generate compile_commands.json
-    set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         find_program(CLANG_TIDY_PROGRAM NAMES clang-tidy)
@@ -38,6 +41,8 @@ if (KINETICPP_STANDALONE_PROJECT)
     if(CCACHE_PROGRAM)
         SET(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
     endif(CCACHE_PROGRAM)
+
+    include(cmake/CheckCxxCompilerFeatures.cmake)
 
     add_library(KinetiCpp INTERFACE)
     add_library(kineticpp ALIAS KinetiCpp)
