@@ -1,4 +1,3 @@
-
 add_executable(chapman chapman/chapman.cpp)
 
 target_compile_features(chapman PUBLIC cxx_std_23)

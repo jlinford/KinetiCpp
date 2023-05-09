@@ -1,3 +1,6 @@
+// Copyright 2023, John Linford <john@redhpc.com>
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 namespace kineticpp {
@@ -5,37 +8,25 @@ namespace kineticpp {
 struct Expression {};
 
 template <typename L, typename R>
-struct BinaryOperator : public Expression
-{ 
+struct BinaryOperator : public Expression {
     const L lhs;
     const R rhs;
-    constexpr BinaryOperator(L& lhs, R& rhs) :
-        lhs(lhs), rhs(rhs)
-    {}
+    constexpr BinaryOperator(L &lhs, R &rhs) : lhs(lhs), rhs(rhs) {}
 };
 
 template <typename L, typename R>
-struct Sum : public BinaryOperator<L,R>
-{ 
-    constexpr Sum(L& lhs, R& rhs) : 
-        BinaryOperator<L,R>(lhs, rhs)
-    {}
+struct Sum : public BinaryOperator<L, R> {
+    constexpr Sum(L &lhs, R &rhs) : BinaryOperator<L, R>(lhs, rhs) {}
 };
 
 template <typename L, typename R>
-struct Product : public BinaryOperator<L,R>
-{ 
-    constexpr Product(L& lhs, R& rhs) : 
-        BinaryOperator<L,R>(lhs, rhs)
-    {}
+struct Product : public BinaryOperator<L, R> {
+    constexpr Product(L &lhs, R &rhs) : BinaryOperator<L, R>(lhs, rhs) {}
 };
 
 template <typename L, typename R>
-struct Exponential : public BinaryOperator<L,R>
-{ 
-    constexpr Exponential(L& lhs, R& rhs) : 
-        BinaryOperator<L,R>(lhs, rhs)
-    {}
+struct Exponential : public BinaryOperator<L, R> {
+    constexpr Exponential(L &lhs, R &rhs) : BinaryOperator<L, R>(lhs, rhs) {}
 };
 
 template <typename T>
@@ -59,4 +50,4 @@ static constexpr auto operator^(L lhs, R rhs) {
     return Exponential {lhs, rhs};
 }
 
-} // namespace kineticpp
+}  // namespace kineticpp
