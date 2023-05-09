@@ -21,15 +21,15 @@ public:
 
     static auto solve(Solution &u, double &h, const double t0, const double tend,
                       const SolverParameters &args = default_args) {
-        return Solver::integrate(fun, jac, u, h, t0, tend, args);
+        return Solver::integrate(fun, jac, u, h, t0, tend, default_args);
     }
 
-    static auto solve(Solution &u, double &h, const double t0, const double tend, const double dt, auto before_solve,
+    static auto solve(auto before_solve, Solution &u, double &h, const double t0, const double tend, const double dt,
                       const SolverParameters &args = default_args) {
         size_t step = 0;
         for (double t = t0; t < tend; t += dt, ++step) {
             before_solve(step, t, h, u);
-            auto errcode = Model::solve(u, h, t, t + dt, args);
+            auto errcode = Solver::integrate(fun, jac, u, h, t, t + dt, args);
             if (errcode != solver::ErrorCode::success) {
                 return errcode;
             }

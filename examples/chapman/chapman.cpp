@@ -96,10 +96,6 @@ int main(int argc, char **argv) {
         1.697E+16   // O2
     };
 
-    // Tweak solver parameters
-    auto args = Model::SolverParameters();
-    args.maxstep = 5;
-
     double h = 0;             // solver timestep on exit
     double t0 = 0;            // integration start time
     double tend = 24 * 3600;  // integration end time
@@ -111,7 +107,6 @@ int main(int argc, char **argv) {
     // Time integration
     // Use callback to report concentrations
     auto errcode = Model::solve(
-        conc, h, t0, tend, dt,
         [](auto &step, auto &t, auto &h, auto &u) {
             std::cout << step << ";" << t << ";" << h << ";";
             for (auto &x : u) {
@@ -119,7 +114,7 @@ int main(int argc, char **argv) {
             }
             std::cout << std::endl;
         },
-        args);
+        conc, h, t0, tend, dt);
 
     // How'd it go?
     std::cout << kineticpp::solver::explain(errcode) << std::endl;
