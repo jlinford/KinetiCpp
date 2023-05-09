@@ -57,7 +57,7 @@ public:
 
         // Time integration
         while (t < tend) {
-            if (nstep > args.maxstep) {
+            if (nstep++ > args.maxstep) {
                 return ErrorCode::iterations;
             }
             h = std::min(h, std::abs(tend - t));
