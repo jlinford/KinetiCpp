@@ -7,6 +7,16 @@ KinetiCpp is a system for simulating mass action kinetics implemented as pure C+
  * A Rosenbrock time-stepping integrator well-suited for solving highly stiff ODE systems.
  * A user-friendly domain specific language for defining chemical reaction networks.
 
+## Quick start
+
+```bash
+$ cmake --preset unixlike-gcc12-release
+$ ninja -C build/unixlike-gcc12-release
+$ ./build/unixlike-gcc12-release/examples/chapman
+```
+
+## Examples
+
 Here's a functional example of a Chapman-like mechanism implemented with KinetiCpp:
 
 ```c++
