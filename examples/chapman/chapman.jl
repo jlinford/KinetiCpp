@@ -35,6 +35,8 @@ using DifferentialEquations
 using SparseArrays
 using Plots
 
+using BenchmarkTools
+
 # Reaction equations and rates.
 # Equations are declared as tuples of `(Reactants, Products, Rate)`.
 # - Reactants and products are declared as lists of equation terms.  
@@ -244,26 +246,22 @@ function fJ!(J::AbstractArray{T}, u, p, t) where {T}
 end
 
 
+# Initial concentrations
+# Order must match `spec`
+u0 = [
+    # Variable species concentrations
+    9.906e+01,
+    6.624e+08,
+    5.326e+11,
+    8.725e+08,
+    2.240e+08,
+    # Fixed species concentrations
+    8.120e+16,
+    1.697e+16
+]
+
 # Time integration
 let
-    # Initial concentrations
-    # Order must match `spec`
-    u0 = [
-        # Variable species concentrations
-        9.906e+01,
-        6.624e+08,
-        5.326e+11,
-        8.725e+08,
-        2.240e+08,
-        # Fixed species concentrations
-        8.120e+16,
-        1.697e+16
-    ]
-
-    J = spzeros((nvar, nvar))
-    fJ!(J, u0, 0, 12 * 3600)
-    display(J)
-
     # Integration time in seconds
     t0 = 0 * 3600
     tend = 24 * 3600
@@ -287,3 +285,15 @@ let
         plot(sol, idxs=[3]),
         plot(sol, idxs=[1, 6, 7]))
 end
+
+# Benchmarking
+let 
+    du = similar(u0)
+    @benchmark f!(du, u0, 0, 12*3600)
+end
+
+let 
+    J = spzeros((nvar, nvar))
+    @benchmark fJ!(J, u0, 0, 12*3600)
+end
+
