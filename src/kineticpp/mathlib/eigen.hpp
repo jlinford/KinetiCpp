@@ -20,11 +20,7 @@ struct EigenDense {
     template <size_t Rows, size_t Cols>
     using Matrix = Eigen::Matrix<T, Rows, Cols>;
 
-    template <typename Matrix>
-    using LUDecomp = Eigen::FullPivLU<Eigen::Ref<Matrix>>;
-
-    template <size_t Rows>
-    static constexpr size_t size(Vector<Rows> &y) {
+    static constexpr size_t size(auto &y) {
         return y.size();
     }
 
@@ -44,32 +40,29 @@ struct EigenDense {
     static void axpy(auto &y, const Scalar alpha, const auto &x) { y = alpha * x + y; }
 
     // B <- I*alpha - A
-    template <typename Matrix>
-    static void iama(Matrix &B, Scalar const alpha, const Matrix &A) {
+    static void iama(auto &B, Scalar const alpha, const auto &A) {
+        using Matrix = std::remove_reference_t<decltype(A)>;
         B = Matrix::Identity() * alpha - A;
     }
 
     // Inplace LU decomposition
-    template <typename Matrix>
-    static LUDecomp<Matrix> lu_decomposition(Matrix &A) {
-        return LUDecomp<Matrix>(A);
+    static auto lu_decomposition(auto &A) {
+        using Matrix = std::remove_reference_t<decltype(A)>;
+        return Eigen::FullPivLU<Eigen::Ref<Matrix>>(A);
     }
 
     // Recalculate the LU decomposition
-    template <typename Decomp, typename Matrix>
-    static void update_decomposition(Decomp &decomp, Matrix &A) {
+    static void update_decomposition(auto &decomp, auto &A) {
         decomp.compute(A);
     }
 
     // Returns `true` if matrix decomposition is non-singular
-    template <typename Decomp>
-    static bool invertible(const Decomp &decomp) {
+    static bool invertible(const auto &decomp) {
         return decomp.isInvertible();
     }
 
     // In-place matrix solution
-    template <typename Decomp, typename Vector>
-    static void solve(Decomp &decomp, Vector &b) {
+    static void solve(auto &decomp, auto &b) {
         b = decomp.solve(b);
     }
 };
