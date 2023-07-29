@@ -20,7 +20,6 @@ public:
     using LinearAlgebra = LA;
     using Vector = typename LA::template Vector<N>;
     using Matrix = typename LA::template Matrix<N, N>;
-    using LUDecomp = typename LA::template LUDecomp<Matrix>;
 
     struct Parameters {
         double abstol = 1.0;
@@ -83,7 +82,7 @@ public:
                 LA::iama(hgimj, 1.0 / (h * P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                LUDecomp hgimj_decomp = LA::lu_decomposition(hgimj);
+                auto hgimj_decomp = LA::lu_decomposition(hgimj);
 
                 // If decomposition is not invertable reduce step size and try
                 // again
