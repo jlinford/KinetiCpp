@@ -20,9 +20,6 @@ struct EigenDense {
     template <size_t Rows, size_t Cols>
     using Matrix = Eigen::Matrix<T, Rows, Cols>;
 
-    template <typename Matrix>
-    using LUDecomp = Eigen::FullPivLU<Eigen::Ref<Matrix>>;
-
     template <size_t Rows>
     static constexpr size_t size(Vector<Rows> &y) {
         return y.size();
@@ -51,8 +48,8 @@ struct EigenDense {
 
     // Inplace LU decomposition
     template <typename Matrix>
-    static LUDecomp<Matrix> lu_decomposition(Matrix &A) {
-        return LUDecomp<Matrix>(A);
+    static auto lu_decomposition(Matrix &A) {
+        return Eigen::FullPivLU<Eigen::Ref<Matrix>>(A);
     }
 
     // Recalculate the LU decomposition
