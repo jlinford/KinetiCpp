@@ -58,37 +58,23 @@ public:
         using agg = Mech::agg_stoich;
         auto rates = Mech::rates(t);
 
-        std::array<double, lhs::nnz> B;
-        size_t rank = 0;
-        lhs::for_nz([&](auto i, auto j, auto val) {
-            double p = rates[i];
-            lhs::for_row_nz(i, [&](auto k, auto val) {
-                if constexpr (k == j) {
-                    p *= val * std::pow(u[k], val - 1);
-                } else {
-                    p *= std::pow(u[k], val);
-                }
-            });
-            B[rank++] = p;
-        });
-
         Solver::LinearAlgebra::zero(J);
-        agg::for_row_col([&](auto i, auto aj) {
-            lhs::for_col(i, [&](auto lj) {
-                // J[i,j] = sum(agg_stoich[:,i] .* B[:,j])
-                if constexpr (lj < Mech::nvar) {
-                    double sum = 0;
-                    agg::for_row_index([&](auto ii) {
-                        constexpr size_t bi = lhs::rank(ii, lj);
-                        if constexpr (bi < lhs::nnz) {
-                            constexpr double agg_val = agg::value(ii, aj);
-                            sum += agg_val * B[bi];
-                        }
-                    });
-                    J(size_t(aj), size_t(lj)) = sum;
+
+        size_t rank = 0;
+        lhs::for_nz([&](auto k, auto j, auto val) {
+            double p = rates[k];
+            lhs::for_row_nz(k, [&](auto ii, auto val) {
+                if constexpr (ii == j) {
+                    p *= val * std::pow(u[ii], val - 1);
+                } else {
+                    p *= std::pow(u[ii], val);
                 }
             });
+            for_constexpr<0, Mech::nvar>([&](auto i) {
+                J(size_t(i),size_t(j)) += agg::value(k,i) * p;
+            });
         });
+        
     }
 
 };  // Model
