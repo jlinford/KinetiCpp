@@ -62,19 +62,18 @@ public:
 
         size_t rank = 0;
         lhs::for_nz([&](auto k, auto j, auto val) {
-            double p = rates[k];
+            double B_kj = rates[k];
             lhs::for_row_nz(k, [&](auto ii, auto val) {
                 if constexpr (ii == j) {
-                    p *= val * std::pow(u[ii], val - 1);
+                    B_kj *= val * std::pow(u[ii], val - 1);
                 } else {
-                    p *= std::pow(u[ii], val);
+                    B_kj *= std::pow(u[ii], val);
                 }
             });
-            for_constexpr<0, Mech::nvar>([&](auto i) {
-                J(size_t(i),size_t(j)) += agg::value(k,i) * p;
+            agg::for_row_nz(k, [&](auto i, auto A_ki) { 
+                J(size_t(i), size_t(j)) += A_ki * B_kj; 
             });
         });
-        
     }
 
 };  // Model
