@@ -38,61 +38,50 @@ public:
     }
 
     static void fun(Solution &du, const Solution &u, const double t) {
-        constexpr auto lhs = Mech::lhs_stoich();
-        constexpr auto agg = Mech::agg_stoich();
+        using lhs = Mech::lhs_stoich;
+        using agg = Mech::agg_stoich;
         auto rates = Mech::rates(t);
 
         std::array<double, Mech::nrct> rate_prod;
-        for_row<lhs>([&](auto i) {
+        lhs::for_row_index([&](auto i) {
             double prod = rates[i];
-            for_nz<lhs, i>([&](auto j, auto val) { prod *= std::pow(u[j], val); });
+            lhs::for_row_nz(i, [&](auto j, auto val) { prod *= std::pow(u[j], val); });
             rate_prod[i] = prod;
         });
 
         Solver::LinearAlgebra::zero(du);
-        for_nz<agg>([&](auto i, auto j, auto val) { du(j.value) += val * rate_prod[i]; });
+        agg::for_nz([&](auto i, auto j, auto val) { du(j.value) += val * rate_prod[i]; });
     }
 
     static void jac(Jacobian &J, const Solution &u, const double t) {
-        constexpr auto lhs = Mech::lhs_stoich();
-        constexpr auto agg = Mech::agg_stoich();
-
+        using lhs = Mech::lhs_stoich;
+        using agg = Mech::agg_stoich;
         auto rates = Mech::rates(t);
 
-        std::array<double, lhs.nnz> B;
+        std::array<double, lhs::nnz> B;
         size_t rank = 0;
-        for_nz<lhs>([&](auto i, auto j, auto val) {
-            constexpr size_t jp1 = j + 1;
+        lhs::for_nz([&](auto i, auto j, auto val) {
             double p = rates[i];
-            // p *= prod(u[1:j-1].^lhs_stoich[1:j-1,i])
-            for_constexpr<0, jp1 - 1>([&](auto k) {
-                constexpr double lhs_exp = lhs[i, k];
-                if constexpr (is_nonzero(lhs_exp)) {
-                    p *= std::pow(u[k], lhs_exp);
-                }
-            });
-            // p *= lhs_stoich[j,i] * u[j]^(lhs_stoich[j,i]-1)
-            p *= val * std::pow(u[j], val - 1);
-            // p *= prod(u[j+1:nspec].^lhs_stoich[j+1:nspec,i])
-            for_constexpr<jp1, Mech::nspc>([&](auto k) {
-                constexpr double lhs_exp = lhs[i, k];
-                if constexpr (is_nonzero(lhs_exp)) {
-                    p *= std::pow(u[k], lhs_exp);
+            lhs::for_row_nz(i, [&](auto k, auto val) {
+                if constexpr (k == j) {
+                    p *= val * std::pow(u[k], val - 1);
+                } else {
+                    p *= std::pow(u[k], val);
                 }
             });
             B[rank++] = p;
         });
 
         Solver::LinearAlgebra::zero(J);
-        for_row_col<agg>([&](auto i, auto aj) {
-            for_col<lhs, i>([&](auto lj) {
+        agg::for_row_col([&](auto i, auto aj) {
+            lhs::for_col(i, [&](auto lj) {
                 // J[i,j] = sum(agg_stoich[:,i] .* B[:,j])
                 if constexpr (lj < Mech::nvar) {
                     double sum = 0;
-                    for_row<agg>([&](auto ii) {
-                        constexpr size_t bi = lhs.rank(ii, lj);
-                        if constexpr (bi < lhs.nnz) {
-                            constexpr double agg_val = agg[ii, aj];
+                    agg::for_row_index([&](auto ii) {
+                        constexpr size_t bi = lhs::rank(ii, lj);
+                        if constexpr (bi < lhs::nnz) {
+                            constexpr double agg_val = agg::value(ii, aj);
                             sum += agg_val * B[bi];
                         }
                     });

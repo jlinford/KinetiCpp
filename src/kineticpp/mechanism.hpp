@@ -80,32 +80,25 @@ FixedSpecies(T0, TN...) -> FixedSpecies<typename T0::type, 1 + sizeof...(TN)>;
 template <VariableSpecies Var, FixedSpecies Fix, auto... React>
 class Mechanism {
 public:
-    using species_type = decltype(Var)::value_type;
-    using species_id_type = species_type::id_type;
-
     static constexpr size_t nvar = Var.size();
     static constexpr size_t nfix = Fix.size();
     static constexpr size_t nspc = nvar + nfix;
     static constexpr size_t nrct = sizeof...(React);
-
-    static constexpr bool is_var_spc(species_id_type id) {
-        auto it = std::find(Var.begin(), Var.end(), id);
-        return it != Var.end();
-    }
 
     template <typename... Args>
     static constexpr auto rates(Args... args) {
         return std::array<double, nrct> {calc_rate(React.rate, args...)...};
     }
 
-    static constexpr auto lhs_stoich() { return build_stoich_csr<true, false>(); }
-
-    static constexpr auto rhs_stoich() { return build_stoich_csr<false, true>(); }
-
-    static constexpr auto agg_stoich() { return build_stoich_csr<true, true>(); }
-
 private:
+    using species_type = decltype(Var)::value_type;
+    using species_id_type = species_type::id_type;
     using term_type = std::pair<species_id_type, double>;
+
+    static constexpr bool is_var_spc(species_id_type id) {
+        auto it = std::find(Var.begin(), Var.end(), id);
+        return it != Var.end();
+    }
 
     template <Arithmetic Rate, typename... Args>
     static constexpr double calc_rate(const Rate &rconst, Args &&...) {
@@ -167,7 +160,7 @@ private:
     }
 
     template <bool lhs, bool rhs>
-    static constexpr size_t count_nonzeros() {
+    static constexpr size_t count_stoich_nz() {
         size_t nz = 0;
         foreach(
             [&](auto rct) {
@@ -202,7 +195,7 @@ private:
     template <bool lhs, bool rhs>
     static constexpr auto build_stoich_csr() {
         constexpr size_t rowsize = (lhs && rhs) ? nvar : nspc;
-        constexpr size_t nz = count_nonzeros<lhs, rhs>();
+        constexpr size_t nz = count_stoich_nz<lhs, rhs>();
 
         std::array<size_t, nrct + 1> ridx;
         std::array<size_t, nz> cols;
@@ -265,6 +258,11 @@ private:
     }
 
     static constexpr auto spc_index = declared_order();
+
+public:
+    using lhs_stoich = ConstexprCsrMatrix<build_stoich_csr<true, false>()>;
+    using rhs_stoich = ConstexprCsrMatrix<build_stoich_csr<false, true>()>;
+    using agg_stoich = ConstexprCsrMatrix<build_stoich_csr<true, true>()>;
 };
 
 }  // namespace kineticpp
