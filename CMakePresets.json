@@ -99,7 +99,30 @@
                 "CMAKE_CXX_COMPILER": "g++-12",
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo"
             }
+        },
+        {
+            "name": "unixlike-gcc13-debug",
+            "displayName": "gcc-13 Debug",
+            "description": "Target Unix-like OS with the gcc-13 compiler, debug build type",
+            "inherits": "conf-unixlike-common",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-13",
+                "CMAKE_CXX_COMPILER": "g++-13",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "unixlike-gcc13-release",
+            "displayName": "gcc-13 Release",
+            "description": "Target Unix-like OS with the gcc-13 compiler, release build type",
+            "inherits": "conf-unixlike-common",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-13",
+                "CMAKE_CXX_COMPILER": "g++-13",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
         }
+
     ],
     "testPresets": [
         {
