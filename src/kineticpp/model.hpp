@@ -43,36 +43,58 @@ public:
         auto rates = Mech::rates(t);
 
         std::array<double, Mech::nrct> rate_prod;
-        lhs::for_row_index([&](auto i) {
+        lhs::for_ridx([&](auto i) {
             double prod = rates[i];
-            lhs::for_row_nz(i, [&](auto j, auto val) { prod *= std::pow(u[j], val); });
+            lhs::for_cidx_val_in_row(i, [&](auto j, auto val) { prod *= std::pow(u[j], val); });
             rate_prod[i] = prod;
         });
 
         Solver::LinearAlgebra::zero(du);
-        agg::for_nz([&](auto i, auto j, auto val) { du(j.value) += val * rate_prod[i]; });
+        agg::for_ridx_cidx_val([&](auto i, auto j, auto val) { du(j.value) += val * rate_prod[i]; });
     }
 
     static void jac(Jacobian &J, const Solution &u, const double t) {
         using lhs = Mech::lhs_stoich;
         using agg = Mech::agg_stoich;
+        using jac_struct = Mech::jac_struct;
         auto rates = Mech::rates(t);
 
         Solver::LinearAlgebra::zero(J);
 
+        std::array<double, Mech::nvar> B;
         size_t rank = 0;
-        lhs::for_nz([&](auto k, auto j, auto val) {
+        lhs::for_ridx_cidx([&](auto k, auto j) {
             double B_kj = rates[k];
-            lhs::for_row_nz(k, [&](auto ii, auto val) {
-                if constexpr (ii == j) {
-                    B_kj *= val * std::pow(u[ii], val - 1);
+            lhs::for_cidx_val_in_row(k, [&](auto jj, auto val) {
+                if constexpr (jj == j) {
+                    if constexpr (val == 2) {
+                        B_kj *= 2 * u[jj];
+                    } else if constexpr (val != 1) {
+                        B_kj *= val * std::pow(u[jj], val - 1);
+                    }
                 } else {
-                    B_kj *= std::pow(u[ii], val);
+                    if constexpr (val == 1) {
+                        B_kj *= u[jj];
+                    } else if constexpr (val == 2) {
+                        B_kj *= u[jj]*u[jj];
+                    } else {
+                        B_kj *= std::pow(u[jj], val);
+                    }
                 }
             });
-            agg::for_row_nz(k, [&](auto i, auto A_ki) { 
-                J(size_t(i), size_t(j)) += A_ki * B_kj; 
+            B[rank++] = B_kj;
+        });
+
+        jac_struct::for_ridx_cidx([&](auto i, auto j) {
+            double sum = 0;
+            for_constexpr<0, Mech::nrct>([&](auto k) {
+                constexpr double A_ki = agg::value(k, i);
+                if constexpr (is_nonzero(A_ki) && is_nonzero(lhs::value(k, j))) {
+                    double B_kj = B[lhs::rank(k, j)];
+                    sum += A_ki * B_kj;
+                }
             });
+            J(size_t(i), size_t(j)) = sum;
         });
     }
 

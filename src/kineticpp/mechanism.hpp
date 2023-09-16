@@ -241,6 +241,54 @@ private:
         return CsrMatrix<double, nrct, rowsize, nz> {ridx, cols, vals};
     }
 
+    static constexpr size_t count_jac_nz() {
+        size_t nz = 0;
+        for (size_t i = 0; i < nvar; ++i) {
+            for (size_t j = 0; j < nvar; ++j) {
+                for (size_t k = 0; k < nrct; ++k) {
+                    if (is_nonzero(agg_stoich::value(k, i)) && is_nonzero(lhs_stoich::value(k, j))) {
+                        ++nz;
+                        break;
+                    }
+                }
+            }
+        }
+        return nz;
+    }
+
+    static constexpr auto build_jack_struct() {
+        constexpr size_t nz = count_jac_nz();
+
+        std::array<size_t, nvar + 1> ridx;
+        std::array<size_t, nz> cols;
+        std::array<bool, nz> vals;
+
+        size_t vals_idx = 0;
+        size_t ridx_idx = 0;
+        for (size_t i = 0; i < nvar; ++i) {
+            std::array<bool, nvar> row;
+            row.fill(false);
+            for (size_t j = 0; j < nvar; ++j) {
+                for (size_t k = 0; k < nrct; ++k) {
+                    if (is_nonzero(agg_stoich::value(k, i)) && is_nonzero(lhs_stoich::value(k, j))) {
+                        row[j] = true;
+                        break;
+                    }
+                }
+            }
+            ridx[ridx_idx++] = vals_idx;
+            for (size_t j = 0; j < row.size(); ++j) {
+                if (row[j]) {
+                    vals[vals_idx] = row[j];
+                    cols[vals_idx] = j;
+                    vals_idx++;
+                }
+            }
+        }
+        ridx[ridx_idx] = nz;
+        return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, vals};
+    }
+
     static constexpr size_t spc_num(species_id_type id) {
         auto it = std::find(spc_index.begin(), spc_index.end(), id);
         return it - spc_index.begin();
@@ -263,6 +311,7 @@ public:
     using lhs_stoich = ConstexprCsrMatrix<build_stoich_csr<true, false>()>;
     using rhs_stoich = ConstexprCsrMatrix<build_stoich_csr<false, true>()>;
     using agg_stoich = ConstexprCsrMatrix<build_stoich_csr<true, true>()>;
+    using jac_struct = ConstexprCsrMatrix<build_jack_struct()>;
 };
 
 }  // namespace kineticpp
