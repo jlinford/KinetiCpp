@@ -14,13 +14,9 @@ namespace kineticpp {
 namespace solver {
 
 
-template <typename P, size_t N, typename LA>
+template <typename P, typename LA, typename VarConc, typename FixConc, typename Jacobian>
 class Rosenbrock {
 public:
-    using LinearAlgebra = LA;
-    using Vector = typename LA::template Vector<N>;
-    using Matrix = typename LA::template Matrix<N, N>;
-
     struct Parameters {
         double abstol = 1.0;
         double reltol = 1e-3;
@@ -36,8 +32,8 @@ public:
         double facsafe = 0.9;
     };
 
-    static ErrorCode integrate(auto fun, auto jac, Vector &u, double &h, const double t0, const double tend,
-                               const Parameters &args) {
+    static ErrorCode integrate(auto fun, auto jac, VarConc &var, const FixConc &fix, double &h, const double t0,
+                               const double tend, const Parameters &args) {
 
         constexpr double eps = 10 * std::numeric_limits<double>::epsilon();
         constexpr double delmin = 1e-6;
@@ -52,7 +48,7 @@ public:
         h = std::min(std::max(args.hmin, std::max(args.hmin, args.hlim)), std::max(args.hmax, tend - t0));
 
         // Stage vectors
-        std::array<Vector, P::S> K;
+        std::array<VarConc, P::S> K;
 
         // Time integration
         while (t < tend) {
@@ -61,37 +57,35 @@ public:
             }
             h = std::min(h, std::abs(tend - t));
 
-            Vector f0;
-            fun(f0, u, t);
+            VarConc f0;
+            fun(f0, var, fix, t);
 
-            Matrix j0;
-            jac(j0, u, t);
+            Jacobian j0;
+            jac(j0, var, fix, t);
 
             // Finite difference approximation of df/dt
             const double tdel = std::sqrt(eps) * std::max(delmin, std::abs(t));
             const double tdel_inv = 1.0 / tdel;
-            Vector dfdt;
-            fun(dfdt, u, t + tdel);
+            VarConc dfdt;
+            fun(dfdt, var, fix, t + tdel);
             LA::aymx(dfdt, tdel_inv, f0);
 
             // Step calculation
             bool reject = false;
             while (true) {
                 // Construct step matrix: hgimj = 1/(h*gamma)*I - fJ(t)
-                Matrix hgimj;
+                Jacobian hgimj;
                 LA::iama(hgimj, 1.0 / (h * P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                auto hgimj_decomp = LA::lu_decomposition(hgimj);
+                auto decomp = typename LA::Decomposition();
 
-                // If decomposition is not invertable reduce step size and try
-                // again
-                if (!LA::invertible(hgimj_decomp)) {
+                // If decomposition fails, reduce step size and retry
+                if (!LA::decompose(decomp, hgimj)) {
                     double hbar = h * args.hfac;
                     for (size_t ndecomp = 1; ndecomp < args.maxdecomp; ++ndecomp) {
                         LA::iama(hgimj, 1.0 / (hbar * P::Gamma[0]), j0);
-                        LA::update_decomposition(hgimj_decomp, hgimj);
-                        if (LA::invertible(hgimj_decomp)) {
+                        if (LA::decompose(decomp, hgimj)) {
                             // Decomp successful
                             break;
                         } else if (ndecomp == args.maxdecomp - 1) {
@@ -104,20 +98,20 @@ public:
 
                 // Calculate stages
                 for (size_t stage = 0; stage < P::S; ++stage) {
-                    Vector &sK = K[stage];
-                    Vector fs;
+                    VarConc &sK = K[stage];
+                    VarConc fs;
                     if (stage == 0) {
                         LA::copy(fs, f0);
                     } else {
                         if (P::EvalF[stage]) {
-                            Vector ubar;
-                            LA::copy(ubar, u);
+                            VarConc ubar;
+                            LA::copy(ubar, var);
                             for (size_t i = 0; i < stage; ++i) {
                                 double alpha = P::A[stage * (stage - 1) / 2 + i];
                                 LA::axpy(ubar, alpha, K[i]);
                             }
                             double tau = t + h * P::Alpha[stage];
-                            fun(fs, ubar, tau);
+                            fun(fs, ubar, fix, tau);
                         }
                     }
                     LA::copy(sK, fs);
@@ -129,36 +123,36 @@ public:
                         double hGamma = h * P::Gamma[stage];
                         LA::axpy(sK, hGamma, dfdt);
                     }
-                    LA::solve(hgimj_decomp, sK);
+                    LA::solve(decomp, sK);
                 }  // Stage calculation
 
                 // New solution
-                Vector udot;
-                LA::copy(udot, u);
+                VarConc udot;
+                LA::copy(udot, var);
                 for (size_t i = 0; i < P::S; ++i) {
                     LA::axpy(udot, P::M[i], K[i]);
                 }
 
                 // Estimate error
-                Vector uerr;
+                VarConc uerr;
                 LA::zero(uerr);
                 for (size_t i = 0; i < P::S; ++i) {
                     LA::axpy(uerr, P::E[i], K[i]);
                 }
                 double err = 0;
-                for (decltype(u.size()) i = 0; i < u.size(); ++i) {
-                    double umax = std::max(std::abs(u[i]), std::abs(udot[i]));
+                for (auto i = 0; i < LA::size(var); ++i) {
+                    double umax = std::max(std::abs(var[i]), std::abs(udot[i]));
                     double scale = args.abstol + args.reltol * umax;
                     err += (uerr[i] * uerr[i]) / (scale * scale);
                 }
-                err = std::sqrt(err / u.size());
+                err = std::sqrt(err / LA::size(var));
 
                 // New step size
                 double hdot =
                     h * std::min(args.facmax, std::max(args.facmin, args.facsafe / std::pow(err, 1.0 / P::ELO)));
                 if ((err <= 1.0) || (h < args.hmin)) {
                     // Accept step and update solution
-                    LA::copy(u, udot);
+                    LA::copy(var, udot);
                     t += h;
                     // Set step size for next iteration
                     hdot = std::max(args.hmin, std::min(hdot, std::max(args.hmax, tend - t0)));
@@ -276,11 +270,11 @@ struct Ros4 {
 }  // namespace rosenbrock_parameters
 
 
-template <size_t N, typename LA>
-using Ros2 = Rosenbrock<rosenbrock_parameters::Ros2, N, LA>;
+template <typename... Ts>
+using Ros2 = Rosenbrock<rosenbrock_parameters::Ros2, Ts...>;
 
-template <size_t N, typename LA>
-using Ros4 = Rosenbrock<rosenbrock_parameters::Ros4, N, LA>;
+template <typename... Ts>
+using Ros4 = Rosenbrock<rosenbrock_parameters::Ros4, Ts...>;
 
 
 }  // namespace solver

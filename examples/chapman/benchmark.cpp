@@ -8,6 +8,8 @@
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <array>
+
 #include <kineticpp/mathlib/eigen.hpp>
 #include <kineticpp/model.hpp>
 #include <kineticpp/solver/rosenbrock.hpp>
@@ -35,31 +37,33 @@ int main(int argc, char **argv) {
     // Use the Chapman-like mechanism with a Ros4 implicit time stepping
     // integrator implemented with Eigen dense matrices
     using Model =
-        kineticpp::Model<photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::EigenDense<double>>;
+        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::EigenDense>;
 
     // Initial concentrations.
     // Species order is specified at mechanism definition
-    Model::Solution conc {
+    Model::VarConc var {
         9.906E+01,  // O1D
         6.624E+08,  // O1
         5.326E+11,  // O3
         8.725E+08,  // NO
-        2.240E+08,  // NO2
+        2.240E+08  // NO2
+    };
+    Model::FixConc fix {
         8.120E+16,  // M
         1.697E+16   // O2
     };
 
-    double t = 12 * 3600;
+    double t = 12 * 3600;    
 
-    Model::Solver::Vector du;
-    benchmark("Function", [&]() { Model::fun(du, conc, t); });
+    Model::VarConc du;
+    benchmark("Function", [&]() { Model::fun(du, var, fix, t); });
 
-    Model::Solver::Matrix J;
-    benchmark("Jacobian", [&]() { Model::jac(J, conc, t); });
+    Model::Jacobian J;
+    benchmark("Jacobian", [&]() { Model::jac(J, var, fix, t); });
 
     benchmark("Time Integration", [&]() {
         double h = 0;
-        Model::solve(conc, h, 0, 24 * 3600);
+        Model::solve(var, fix, h, 0, 24 * 3600);
     });
 
     return EXIT_SUCCESS;

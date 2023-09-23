@@ -92,6 +92,12 @@ struct ConstexprCsrMatrix {
         });
     }
 
+    static constexpr void for_cidx_in_row(auto row, auto &&body) {
+        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) { 
+            body(constexpr_index<csr.cols[ii]> {});
+        });
+    }
+
     static constexpr void for_cidx_val_in_row(auto row, auto &&body) {
         for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) { 
             body(constexpr_index<csr.cols[ii]> {}, constexpr_value<csr.vals[ii]> {}); 

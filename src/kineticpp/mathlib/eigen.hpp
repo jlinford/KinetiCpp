@@ -4,26 +4,53 @@
 #pragma once
 
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 
 
 namespace kineticpp {
 namespace mathlib {
 
-
-template <typename T>
-struct EigenDense {
-    using Scalar = T;
-
+template <typename T, typename JS>
+class EigenDense {
+public:
     template <size_t N>
     using Vector = Eigen::Matrix<T, N, 1>;
 
-    template <size_t Rows, size_t Cols>
-    using Matrix = Eigen::Matrix<T, Rows, Cols>;
+    using Scalar = T;
+    using JacStruct = JS;
+    using Jacobian = Vector<JS::nnz>;
 
-    template <size_t Rows>
-    static constexpr size_t size(Vector<Rows> &y) {
-        return y.size();
-    }
+    struct Decomposition {
+        using SparseMatrix = Eigen::SparseMatrix<T>;
+        using SparseLU = Eigen::SparseLU<SparseMatrix, Eigen::COLAMDOrdering<int>>;
+
+        Decomposition() : A(JacStruct::nrow, JacStruct::ncol) {}
+
+        void reset() { A.setZero(); }
+
+        bool decompose(Jacobian &Anz) {
+            std::array<Eigen::Triplet<T>, JacStruct::nnz> triplets;
+            size_t rank = 0;
+            JacStruct::for_ridx_cidx([&](auto i, auto j) {
+                triplets[rank] = {i, j, Anz[rank]};
+                ++rank;
+            });
+            A.setFromTriplets(triplets.begin(), triplets.end());
+            solver.analyzePattern(A);
+            solver.factorize(A);
+            return (solver.info() == Eigen::Success);
+        }
+
+        auto solve(auto &x) {
+            return solver.solve(x);
+        }
+
+        SparseMatrix A;
+        SparseLU solver;
+    };
+
+public:
+    static constexpr size_t size(auto &y) { return y.size(); }
 
     // y <- 0
     static void zero(auto &y) { y.setZero(); }
@@ -32,43 +59,30 @@ struct EigenDense {
     static void copy(auto &y, const auto &x) { y = x; }
 
     // y <- alpha * y
-    static void scale(auto &y, const Scalar alpha) { y *= alpha; }
+    static void scale(auto &y, const auto alpha) { y *= alpha; }
 
     // y <- alpha * (y - x)
-    static void aymx(auto &y, const Scalar alpha, const auto &x) { y = alpha * (y - x); }
+    static void aymx(auto &y, const auto alpha, const auto &x) { y = alpha * (y - x); }
 
     // y <- alpha * x + y
-    static void axpy(auto &y, const Scalar alpha, const auto &x) { y = alpha * x + y; }
+    static void axpy(auto &y, const auto alpha, const auto &x) { y = alpha * x + y; }
 
     // B <- I*alpha - A
-    template <typename Matrix>
-    static void iama(Matrix &B, Scalar const alpha, const Matrix &A) {
-        B = Matrix::Identity() * alpha - A;
+    static void iama(Jacobian &B, auto const alpha, const Jacobian &A) {
+        size_t rank = 0;
+        JacStruct::for_ridx_cidx([&](auto i, auto j) {
+            if constexpr (i == j) {
+                B[rank] = alpha - A[rank];
+            } else {
+                B[rank] = -A[rank];
+            }
+            ++rank;
+        });
     }
 
-    // Inplace LU decomposition
-    template <typename Matrix>
-    static auto lu_decomposition(Matrix &A) {
-        return Eigen::FullPivLU<Eigen::Ref<Matrix>>(A);
-    }
+    static bool decompose(Decomposition &decomp, Jacobian &Anz) { return decomp.decompose(Anz); }
 
-    // Recalculate the LU decomposition
-    template <typename Decomp, typename Matrix>
-    static void update_decomposition(Decomp &decomp, Matrix &A) {
-        decomp.compute(A);
-    }
-
-    // Returns `true` if matrix decomposition is non-singular
-    template <typename Decomp>
-    static bool invertible(const Decomp &decomp) {
-        return decomp.isInvertible();
-    }
-
-    // In-place matrix solution
-    template <typename Decomp, typename Vector>
-    static void solve(Decomp &decomp, Vector &b) {
-        b = decomp.solve(b);
-    }
+    static void solve(Decomposition &decomp, auto &x) { x = decomp.solve(x); }
 };
 
 

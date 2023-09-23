@@ -22,16 +22,18 @@ int main(int argc, char **argv) {
     // Use the Chapman-like mechanism with a Ros4 implicit time stepping
     // integrator implemented with Eigen dense matrices
     using Model =
-        kineticpp::Model<photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::EigenDense<double>>;
+        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::EigenDense>;
 
     // Initial concentrations.
     // Species order is specified at mechanism definition
-    Model::Solution conc {
+    Model::VarConc var {
         9.906E+01,  // O1D
         6.624E+08,  // O1
         5.326E+11,  // O3
         8.725E+08,  // NO
-        2.240E+08,  // NO2
+        2.240E+08   // NO2
+    };
+    Model::FixConc fix {
         8.120E+16,  // M
         1.697E+16   // O2
     };
@@ -47,14 +49,17 @@ int main(int argc, char **argv) {
     // Time integration
     // Use callback to report concentrations
     auto errcode = Model::solve(
-        [](auto &step, auto &t, auto &h, auto &u) {
+        [](auto &step, auto &t, auto &h, auto &var, auto &fix) {
             std::cout << step << ";" << t << ";" << h << ";";
-            for (auto &x : u) {
+            for (auto &x : var) {
+                std::cout << x << ";";
+            }
+            for (auto &x : fix) {
                 std::cout << x << ";";
             }
             std::cout << std::endl;
         },
-        conc, h, t0, tend, dt);
+        var, fix, h, t0, tend, dt);
 
     // How'd it go?
     std::cout << kineticpp::solver::explain(errcode) << std::endl;

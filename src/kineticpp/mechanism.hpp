@@ -80,11 +80,6 @@ FixedSpecies(T0, TN...) -> FixedSpecies<typename T0::type, 1 + sizeof...(TN)>;
 template <VariableSpecies Var, FixedSpecies Fix, auto... React>
 class Mechanism {
 public:
-    static constexpr size_t nvar = Var.size();
-    static constexpr size_t nfix = Fix.size();
-    static constexpr size_t nspc = nvar + nfix;
-    static constexpr size_t nrct = sizeof...(React);
-
     template <typename... Args>
     static constexpr auto rates(Args... args) {
         return std::array<double, nrct> {calc_rate(React.rate, args...)...};
@@ -199,6 +194,7 @@ private:
 
         std::array<size_t, nrct + 1> ridx;
         std::array<size_t, nz> cols;
+        std::array<size_t, std::min(nrct, rowsize)> diag;
         std::array<double, nz> vals;
 
         size_t vals_idx = 0;
@@ -256,7 +252,7 @@ private:
         return nz;
     }
 
-    static constexpr auto build_jack_struct() {
+    static constexpr auto build_jac_struct() {
         constexpr size_t nz = count_jac_nz();
 
         std::array<size_t, nvar + 1> ridx;
@@ -269,10 +265,14 @@ private:
             std::array<bool, nvar> row;
             row.fill(false);
             for (size_t j = 0; j < nvar; ++j) {
-                for (size_t k = 0; k < nrct; ++k) {
-                    if (is_nonzero(agg_stoich::value(k, i)) && is_nonzero(lhs_stoich::value(k, j))) {
-                        row[j] = true;
-                        break;
+                if (i == j) {
+                    row[j] = true;
+                } else {
+                    for (size_t k = 0; k < nrct; ++k) {
+                        if (is_nonzero(agg_stoich::value(k, i)) && is_nonzero(lhs_stoich::value(k, j))) {
+                            row[j] = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -311,7 +311,13 @@ public:
     using lhs_stoich = ConstexprCsrMatrix<build_stoich_csr<true, false>()>;
     using rhs_stoich = ConstexprCsrMatrix<build_stoich_csr<false, true>()>;
     using agg_stoich = ConstexprCsrMatrix<build_stoich_csr<true, true>()>;
-    using jac_struct = ConstexprCsrMatrix<build_jack_struct()>;
+    using jac_struct = ConstexprCsrMatrix<build_jac_struct()>;
+
+    static constexpr size_t nvar = Var.size();
+    static constexpr size_t nfix = Fix.size();
+    static constexpr size_t nspc = nvar + nfix;
+    static constexpr size_t nrct = sizeof...(React);
+    static constexpr size_t njac = count_jac_nz();
 };
 
 }  // namespace kineticpp
