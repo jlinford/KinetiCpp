@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     // Use the Chapman-like mechanism with a Ros4 implicit time stepping
     // integrator implemented with Eigen dense matrices
     using Model =
-        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::EigenDense>;
+        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::Eigen>;
 
     // Initial concentrations.
     // Species order is specified at mechanism definition

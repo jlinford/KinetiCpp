@@ -58,7 +58,9 @@ public:
         });
 
         MathLib::zero(du);
-        agg::for_ridx_cidx_val([&](auto i, auto j, auto val) { du[j] += val * rate_prod[i]; });
+        agg::for_ridx_cidx_val([&](auto i, auto j, auto val) {
+            du[j] += val * rate_prod[i];
+        });
     }
 
     static void jac(Jacobian &J, const VarConc &var, const FixConc &fix, const double t) {

@@ -5,10 +5,10 @@
 // Copyright 2023, John Linford <john@redhpc.com>
 //
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <iostream>
-#include <array>
 
 #include <kineticpp/mathlib/eigen.hpp>
 #include <kineticpp/model.hpp>
@@ -36,8 +36,7 @@ int main(int argc, char **argv) {
     // Define a model of a chemical mechanism.
     // Use the Chapman-like mechanism with a Ros4 implicit time stepping
     // integrator implemented with Eigen dense matrices
-    using Model =
-        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::EigenDense>;
+    using Model = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::Eigen>;
 
     // Initial concentrations.
     // Species order is specified at mechanism definition
@@ -46,20 +45,24 @@ int main(int argc, char **argv) {
         6.624E+08,  // O1
         5.326E+11,  // O3
         8.725E+08,  // NO
-        2.240E+08  // NO2
+        2.240E+08   // NO2
     };
     Model::FixConc fix {
         8.120E+16,  // M
         1.697E+16   // O2
     };
 
-    double t = 12 * 3600;    
+    double t = 12 * 3600;
 
     Model::VarConc du;
-    benchmark("Function", [&]() { Model::fun(du, var, fix, t); });
+    benchmark("Function", [&]() {
+        Model::fun(du, var, fix, t);
+    });
 
     Model::Jacobian J;
-    benchmark("Jacobian", [&]() { Model::jac(J, var, fix, t); });
+    benchmark("Jacobian", [&]() {
+        Model::jac(J, var, fix, t);
+    });
 
     benchmark("Time Integration", [&]() {
         double h = 0;

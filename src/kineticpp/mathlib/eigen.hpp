@@ -7,29 +7,32 @@
 #include <Eigen/Sparse>
 
 
-namespace kineticpp {
-namespace mathlib {
+namespace kineticpp::mathlib {
 
 template <typename T, typename JS>
-class EigenDense {
-public:
+struct Eigen {
+
     template <size_t N>
-    using Vector = Eigen::Matrix<T, N, 1>;
+    using Vector = ::Eigen::Matrix<T, N, 1>;
 
     using Scalar = T;
     using JacStruct = JS;
     using Jacobian = Vector<JS::nnz>;
 
-    struct Decomposition {
-        using SparseMatrix = Eigen::SparseMatrix<T>;
-        using SparseLU = Eigen::SparseLU<SparseMatrix, Eigen::COLAMDOrdering<int>>;
+    class Decomposition {
+        using SparseMatrix = ::Eigen::SparseMatrix<T>;
+        using SparseLU = ::Eigen::SparseLU<SparseMatrix, ::Eigen::COLAMDOrdering<int>>;
 
+        SparseMatrix A;
+        SparseLU solver;
+
+    public:
         Decomposition() : A(JacStruct::nrow, JacStruct::ncol) {}
 
         void reset() { A.setZero(); }
 
         bool decompose(Jacobian &Anz) {
-            std::array<Eigen::Triplet<T>, JacStruct::nnz> triplets;
+            std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
             size_t rank = 0;
             JacStruct::for_ridx_cidx([&](auto i, auto j) {
                 triplets[rank] = {i, j, Anz[rank]};
@@ -38,18 +41,12 @@ public:
             A.setFromTriplets(triplets.begin(), triplets.end());
             solver.analyzePattern(A);
             solver.factorize(A);
-            return (solver.info() == Eigen::Success);
+            return (solver.info() == ::Eigen::Success);
         }
 
-        auto solve(auto &x) {
-            return solver.solve(x);
-        }
-
-        SparseMatrix A;
-        SparseLU solver;
+        auto solve(auto &x) { return solver.solve(x); }
     };
 
-public:
     static constexpr size_t size(auto &y) { return y.size(); }
 
     // y <- 0
@@ -86,5 +83,4 @@ public:
 };
 
 
-}  // namespace mathlib
-}  // namespace kineticpp
+}  // namespace kineticpp::mathlib

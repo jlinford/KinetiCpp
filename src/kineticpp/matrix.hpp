@@ -67,19 +67,16 @@ struct ConstexprCsrMatrix {
 
     static constexpr auto rank(auto row, auto col) { return csr.rank(row, col); }
 
-    // These lambdas are conceptually for-loops so let's format them as such
-    // clang-format off
-
     static constexpr void for_ridx(auto &&body) {
-        for_constexpr<0, csr.nrow>([&](auto i) { 
-            body(constexpr_index<i> {}); 
+        for_constexpr<0, csr.nrow>([&](auto i) {
+            body(constexpr_index<i> {});
         });
     }
 
     static constexpr void for_ridx_cidx(auto &&body) {
         for_constexpr<0, csr.nrow>([&](auto i) {
-            for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) { 
-                body(constexpr_index<i> {}, constexpr_index<csr.cols[ii]> {}); 
+            for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
+                body(constexpr_index<i> {}, constexpr_index<csr.cols[ii]> {});
             });
         });
     }
@@ -93,18 +90,16 @@ struct ConstexprCsrMatrix {
     }
 
     static constexpr void for_cidx_in_row(auto row, auto &&body) {
-        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) { 
+        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {});
         });
     }
 
     static constexpr void for_cidx_val_in_row(auto row, auto &&body) {
-        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) { 
-            body(constexpr_index<csr.cols[ii]> {}, constexpr_value<csr.vals[ii]> {}); 
+        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
+            body(constexpr_index<csr.cols[ii]> {}, constexpr_value<csr.vals[ii]> {});
         });
     }
-
-    // clang-format on
 };
 
 
