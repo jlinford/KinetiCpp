@@ -19,7 +19,7 @@ struct Eigen {
     using JacStruct = JS;
     using Jacobian = Vector<JS::nnz>;
 
-    class Decomposition {
+    class Solver {
         using SparseMatrix = ::Eigen::SparseMatrix<T>;
         using SparseLU = ::Eigen::SparseLU<SparseMatrix, ::Eigen::COLAMDOrdering<int>>;
 
@@ -27,7 +27,7 @@ struct Eigen {
         SparseLU solver;
 
     public:
-        Decomposition() : A(JacStruct::nrow, JacStruct::ncol) {}
+        Solver() : A(JacStruct::nrow, JacStruct::ncol) {}
 
         bool decompose(Jacobian &Anz) {
             std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
@@ -84,9 +84,9 @@ struct Eigen {
         });
     }
 
-    static bool decompose(Decomposition &decomp, Jacobian &Anz) { return decomp.decompose(Anz); }
+    static bool decompose(Solver &solver, Jacobian &Anz) { return solver.decompose(Anz); }
 
-    static void solve(Decomposition &decomp, auto &x) { x = decomp.solve(x); }
+    static void solve(Solver &solver, auto &x) { x = solver.solve(x); }
 };
 
 

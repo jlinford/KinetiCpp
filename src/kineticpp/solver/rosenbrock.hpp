@@ -46,7 +46,7 @@ struct Rosenbrock {
                                Args &args) {
 
         // Initialize solver
-        auto decomp = typename LA::Decomposition();
+        auto decomp = typename LA::Solver();
 
         // Current integration time
         double t = t0;
