@@ -17,12 +17,6 @@
 namespace kineticpp {
 
 template <typename T>
-requires std::is_floating_point_v<T>
-static constexpr bool is_nonzero(T elem) {
-    return std::abs(elem) > (10 * std::numeric_limits<T>::epsilon());
-}
-
-template <typename T>
 concept SpeciesId = std::is_enum_v<T>;
 
 template <SpeciesId ID>

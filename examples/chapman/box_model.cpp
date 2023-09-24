@@ -44,13 +44,14 @@ int main(int argc, char **argv) {
     double dt = 600;          // time between output
 
     // output header
-    std::cout << "step;t;h;O1D;O1;O3;NO;NO2;M;O2";
+    std::cout << "step;t;h;O1D;O1;O3;NO;NO2;M;O2" << std::endl;
 
     // Time integration
     // Use callback to report concentrations
+    Model::SolverArgs args;
     auto errcode = Model::solve(
-        [](auto &step, auto &t, auto &h, auto &var, auto &fix) {
-            std::cout << step << ";" << t << ";" << h << ";";
+        [&](auto &step, auto &t, auto &var, auto &fix) {
+            std::cout << step << ";" << t << ";" << args.h << ";";
             for (auto &x : var) {
                 std::cout << x << ";";
             }
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
             }
             std::cout << std::endl;
         },
-        var, fix, h, t0, tend, dt);
+        var, fix, t0, tend, dt, &args);
 
     // How'd it go?
     std::cout << kineticpp::solver::explain(errcode) << std::endl;

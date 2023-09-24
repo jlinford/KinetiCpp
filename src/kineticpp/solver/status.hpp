@@ -3,8 +3,7 @@
 
 #pragma once
 
-namespace kineticpp {
-namespace solver {
+namespace kineticpp::solver {
 
 
 enum struct ErrorCode : int {
@@ -28,5 +27,4 @@ static constexpr auto explain(ErrorCode code) {
 }
 
 
-}  // namespace solver
-}  // namespace kineticpp
+}  // namespace kineticpp::solver

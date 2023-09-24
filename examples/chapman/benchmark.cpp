@@ -65,8 +65,7 @@ int main(int argc, char **argv) {
     });
 
     benchmark("Time Integration", [&]() {
-        double h = 0;
-        Model::solve(var, fix, h, 0, 24 * 3600);
+        Model::solve(var, fix, 0, 24 * 3600);
     });
 
     return EXIT_SUCCESS;

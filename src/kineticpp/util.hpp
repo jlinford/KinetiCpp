@@ -3,7 +3,16 @@
 
 #pragma once
 
+#include <limits>
+#include <type_traits>
+
 namespace kineticpp {
+
+template <typename T>
+requires std::is_floating_point_v<T>
+static constexpr bool is_nonzero(T elem) {
+    return std::abs(elem) > (10 * std::numeric_limits<T>::epsilon());
+}
 
 // for (i=Start; i<End; ++i)
 template <auto Start, auto End, typename B>
@@ -26,7 +35,7 @@ static constexpr void for_constexpr(B &&body) {
 
 // for (auto x : [template_parameter_pack])
 template <typename B, typename... Args>
-static constexpr void foreach (B &&body, Args && ...args) {
+static constexpr void foreach(B &&body, Args &&...args) {
     (body(std::forward<Args>(args)), ...);
 }
 
@@ -38,4 +47,4 @@ static constexpr void indexed_foreach(B &&body, Args &&...args) {
     }(std::make_index_sequence<sizeof...(Args)> {});
 }
 
-} // namespace kineticpp 
+}  // namespace kineticpp

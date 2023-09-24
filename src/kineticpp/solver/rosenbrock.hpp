@@ -15,85 +15,99 @@ namespace solver {
 
 
 template <typename P, typename LA, typename VarConc, typename FixConc, typename Jacobian>
-class Rosenbrock {
-public:
-    struct Parameters {
-        double abstol = 1.0;
-        double reltol = 1e-3;
-        size_t maxstep = 100000;
-        size_t maxdecomp = 5;
-        double hmin = 0;
-        double hmax = std::numeric_limits<double>::max();
-        double hlim = 1e-5;
-        double hfac = 0.5;
-        double facmin = 0.2;
-        double facmax = 6;
-        double facrej = 0.1;
-        double facsafe = 0.9;
+struct Rosenbrock {
+
+    static constexpr double double_max = std::numeric_limits<double>::max();
+
+    struct Args {
+        ErrorCode status;          // Integration status
+        size_t maxstep = 100000;   // Maximum number of solver steps
+        size_t maxdecomp = 5;      // Maximum number of attempted Jacobian matrix decompositions
+        bool scrub = true;         // Clamp near-zero values to zero
+        double abstol = 1.0;       // Absolute tolerance
+        double reltol = 1e-3;      // Relative tolerance
+        double h = 0;              // Integration timestep
+        double hmin = 0;           // Minimum timestep size
+        double hmax = double_max;  // Maximum timestep size
+        double hlim = 1e-5;        // Lower bound on step size
+        double hfac = 0.5;         // Step size reduction factor in case of failed Jacobian matrix decomp
+        double facmin = 0.2;       // Lower bound on new step calculation factor
+        double facmax = 6;         // Upper bound on new step calculation factor
+        double facrej = 0.1;       // Step size back up rejection factor
+        double facsafe = 0.9;      // Safety factor for new step size calculation
+        size_t nstep = 0;          // Number of integration steps
+        size_t nfun = 0;           // Number of ODE function calls
+        size_t njac = 0;           // Number of ODE Jacobian calls
+        size_t ndecomp = 0;        // Number of matrix decompositions
+        size_t nsolve = 0;         // Number of matrix solutions
     };
 
-    static ErrorCode integrate(auto fun, auto jac, VarConc &var, const FixConc &fix, double &h, const double t0,
-                               const double tend, const Parameters &args) {
+    static ErrorCode integrate(auto fun, auto jac, VarConc &var, const FixConc &fix, const double t0, const double tend,
+                               Args &args) {
 
-        constexpr double eps = 10 * std::numeric_limits<double>::epsilon();
-        constexpr double delmin = 1e-6;
-
-        // Integration step count
-        size_t nstep = 0;
+        // Initialize solver
+        auto decomp = typename LA::Decomposition();
 
         // Current integration time
         double t = t0;
 
         // Integration timestep
-        h = std::min(std::max(args.hmin, std::max(args.hmin, args.hlim)), std::max(args.hmax, tend - t0));
+        args.h = std::min(std::max(args.hmin, std::max(args.hmin, args.hlim)), std::max(args.hmax, tend - t0));
 
         // Stage vectors
         std::array<VarConc, P::S> K;
 
         // Time integration
         while (t < tend) {
-            if (nstep++ > args.maxstep) {
-                return ErrorCode::iterations;
+            if (args.nstep++ > args.maxstep) {
+                return (args.status = ErrorCode::iterations);
             }
-            h = std::min(h, std::abs(tend - t));
+            args.h = std::min(args.h, std::abs(tend - t));
 
             VarConc f0;
             fun(f0, var, fix, t);
+            ++args.nfun;
 
             Jacobian j0;
             jac(j0, var, fix, t);
+            ++args.njac;
 
             // Finite difference approximation of df/dt
+            constexpr double eps = 10 * std::numeric_limits<double>::epsilon();
+            constexpr double delmin = 1e-6;
             const double tdel = std::sqrt(eps) * std::max(delmin, std::abs(t));
-            const double tdel_inv = 1.0 / tdel;
             VarConc dfdt;
             fun(dfdt, var, fix, t + tdel);
-            LA::aymx(dfdt, tdel_inv, f0);
+            ++args.nfun;
+            LA::aymx(dfdt, 1.0 / tdel, f0);
 
             // Step calculation
             bool reject = false;
             while (true) {
                 // Construct step matrix: hgimj = 1/(h*gamma)*I - fJ(t)
                 Jacobian hgimj;
-                LA::iama(hgimj, 1.0 / (h * P::Gamma[0]), j0);
+                LA::iama(hgimj, 1.0 / (args.h * P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                auto decomp = typename LA::Decomposition();
+                auto status = LA::decompose(decomp, hgimj);
+                ++args.ndecomp;
 
                 // If decomposition fails, reduce step size and retry
-                if (!LA::decompose(decomp, hgimj)) {
-                    double hbar = h * args.hfac;
+                if (!status) {
+                    double hbar = args.h * args.hfac;
                     for (size_t ndecomp = 1; ndecomp < args.maxdecomp; ++ndecomp) {
                         LA::iama(hgimj, 1.0 / (hbar * P::Gamma[0]), j0);
-                        if (LA::decompose(decomp, hgimj)) {
+                        auto status = LA::decompose(decomp, hgimj);
+                        ++args.ndecomp;
+                        if (status) {
                             // Decomp successful
                             break;
                         } else if (ndecomp == args.maxdecomp - 1) {
-                            return ErrorCode::decomposition;
+                            return (args.status = ErrorCode::decomposition);
                         }
                         hbar *= args.hfac;
                     }
-                    h = hbar;
+                    args.h = hbar;
                 }
 
                 // Calculate stages
@@ -110,20 +124,21 @@ public:
                                 double alpha = P::A[stage * (stage - 1) / 2 + i];
                                 LA::axpy(ubar, alpha, K[i]);
                             }
-                            double tau = t + h * P::Alpha[stage];
+                            double tau = t + args.h * P::Alpha[stage];
                             fun(fs, ubar, fix, tau);
                         }
                     }
                     LA::copy(sK, fs);
                     for (size_t i = 0; i < stage; ++i) {
-                        double Ch = P::C[stage * (stage - 1) / 2 + i] / h;
+                        double Ch = P::C[stage * (stage - 1) / 2 + i] / args.h;
                         LA::axpy(sK, Ch, K[i]);
                     }
                     if (P::Gamma[stage]) {
-                        double hGamma = h * P::Gamma[stage];
+                        double hGamma = args.h * P::Gamma[stage];
                         LA::axpy(sK, hGamma, dfdt);
                     }
                     LA::solve(decomp, sK);
+                    ++args.nsolve;
                 }  // Stage calculation
 
                 // New solution
@@ -149,14 +164,14 @@ public:
 
                 // New step size
                 double hdot =
-                    h * std::min(args.facmax, std::max(args.facmin, args.facsafe / std::pow(err, 1.0 / P::ELO)));
-                if ((err <= 1.0) || (h < args.hmin)) {
+                    args.h * std::min(args.facmax, std::max(args.facmin, args.facsafe / std::pow(err, 1.0 / P::ELO)));
+                if ((err <= 1.0) || (args.h < args.hmin)) {
                     // Accept step and update solution
-                    LA::copy(var, udot);
-                    t += h;
+                    LA::copy(var, udot, args.scrub);
+                    t += args.h;
                     // Set step size for next iteration
                     hdot = std::max(args.hmin, std::min(hdot, std::max(args.hmax, tend - t0)));
-                    h = reject ? std::min(hdot, h) : hdot;
+                    args.h = reject ? std::min(hdot, args.h) : hdot;
                     // exit loop
                     break;
                 }
@@ -164,19 +179,19 @@ public:
                     // Consecutive rejections
                     // Back off step size by rejection factor and repeat step
                     // calculation
-                    h *= args.facrej;
+                    args.h *= args.facrej;
                 } else {
                     // First rejection
                     // Retry step calculation with the new step size before
                     // backing off step size
                     reject = true;
-                    h = hdot;
+                    args.h = hdot;
                 }
             }  // while (true)
         }      // while (t <= tend)
 
         // Integration successful
-        return ErrorCode::success;
+        return (args.status = ErrorCode::success);
     }  // Integrate
 
 };  // class Rosenbrock

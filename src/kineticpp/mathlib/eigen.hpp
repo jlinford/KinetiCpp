@@ -5,7 +5,7 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-
+#include <kineticpp/util.hpp>
 
 namespace kineticpp::mathlib {
 
@@ -29,8 +29,6 @@ struct Eigen {
     public:
         Decomposition() : A(JacStruct::nrow, JacStruct::ncol) {}
 
-        void reset() { A.setZero(); }
-
         bool decompose(Jacobian &Anz) {
             std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
             size_t rank = 0;
@@ -53,7 +51,16 @@ struct Eigen {
     static void zero(auto &y) { y.setZero(); }
 
     // y <- x
-    static void copy(auto &y, const auto &x) { y = x; }
+    static void copy(auto &y, const auto &x, bool scrub = false) {
+        if (scrub) {
+            for (size_t i = 0; i < y.size(); ++i) {
+                auto x_i = x(i);
+                y(i) = is_nonzero(x_i) ? x_i : 0;
+            }
+        } else {
+            y = x;
+        }
+    }
 
     // y <- alpha * y
     static void scale(auto &y, const auto alpha) { y *= alpha; }
