@@ -46,7 +46,7 @@ struct Rosenbrock {
                                Args &args) {
 
         // Initialize solver
-        auto decomp = typename LA::Solver();
+        auto solver = typename LA::Solver();
 
         // Current integration time
         double t = t0;
@@ -89,7 +89,7 @@ struct Rosenbrock {
                 LA::iama(hgimj, 1.0 / (args.h * P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                auto status = LA::decompose(decomp, hgimj);
+                auto status = LA::decompose(solver, hgimj);
                 ++args.ndecomp;
 
                 // If decomposition fails, reduce step size and retry
@@ -97,7 +97,7 @@ struct Rosenbrock {
                     double hbar = args.h * args.hfac;
                     for (size_t ndecomp = 1; ndecomp < args.maxdecomp; ++ndecomp) {
                         LA::iama(hgimj, 1.0 / (hbar * P::Gamma[0]), j0);
-                        auto status = LA::decompose(decomp, hgimj);
+                        auto status = LA::decompose(solver, hgimj);
                         ++args.ndecomp;
                         if (status) {
                             // Decomp successful
@@ -137,7 +137,7 @@ struct Rosenbrock {
                         double hGamma = args.h * P::Gamma[stage];
                         LA::axpy(sK, hGamma, dfdt);
                     }
-                    LA::solve(decomp, sK);
+                    LA::solve(solver, sK);
                     ++args.nsolve;
                 }  // Stage calculation
 
