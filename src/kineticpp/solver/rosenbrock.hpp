@@ -45,17 +45,26 @@ struct Rosenbrock {
     static ErrorCode integrate(auto fun, auto jac, VarConc &var, const FixConc &fix, const double t0, const double tend,
                                Args &args) {
 
-        // Initialize solver
+        // Initialize linear solver
         auto solver = typename LA::Solver();
+
+        // Allocate ODE function vectors
+        std::array<VarConc, P::S> K;  // Stage vectors
+        VarConc f0;                   // ODE function f(t)
+        VarConc dfdt;                 // Finite difference approximation of df/dt
+        VarConc fs;                   // ODE function evaulation for stage
+        VarConc udot;                 // New solution
+        VarConc uerr;                 // New solution error
+
+        // Allocate compressed Jacobian nonzero vectors
+        Jacobian j0;     // Jacobian fJ(t)
+        Jacobian hgimj;  // Step matrix: hgimj = 1/(h*gamma)*I - fJ(t)
 
         // Current integration time
         double t = t0;
 
-        // Integration timestep
+        // Initial integration timestep
         args.h = std::min(std::max(args.hmin, std::max(args.hmin, args.hlim)), std::max(args.hmax, tend - t0));
-
-        // Stage vectors
-        std::array<VarConc, P::S> K;
 
         // Time integration
         while (t < tend) {
@@ -64,11 +73,9 @@ struct Rosenbrock {
             }
             args.h = std::min(args.h, std::abs(tend - t));
 
-            VarConc f0;
             fun(f0, var, fix, t);
             ++args.nfun;
 
-            Jacobian j0;
             jac(j0, var, fix, t);
             ++args.njac;
 
@@ -76,7 +83,6 @@ struct Rosenbrock {
             constexpr double eps = 10 * std::numeric_limits<double>::epsilon();
             constexpr double delmin = 1e-6;
             const double tdel = std::sqrt(eps) * std::max(delmin, std::abs(t));
-            VarConc dfdt;
             fun(dfdt, var, fix, t + tdel);
             ++args.nfun;
             LA::aymx(dfdt, 1.0 / tdel, f0);
@@ -85,22 +91,20 @@ struct Rosenbrock {
             bool reject = false;
             while (true) {
                 // Construct step matrix: hgimj = 1/(h*gamma)*I - fJ(t)
-                Jacobian hgimj;
                 LA::iama(hgimj, 1.0 / (args.h * P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                auto status = LA::decompose(solver, hgimj);
+                auto decomp_succcess = solver.decompose(hgimj);
                 ++args.ndecomp;
 
                 // If decomposition fails, reduce step size and retry
-                if (!status) {
+                if (!decomp_succcess) {
                     double hbar = args.h * args.hfac;
                     for (size_t ndecomp = 1; ndecomp < args.maxdecomp; ++ndecomp) {
                         LA::iama(hgimj, 1.0 / (hbar * P::Gamma[0]), j0);
-                        auto status = LA::decompose(solver, hgimj);
+                        auto decomp_succcess = solver.decompose(hgimj);
                         ++args.ndecomp;
-                        if (status) {
-                            // Decomp successful
+                        if (decomp_succcess) {
                             break;
                         } else if (ndecomp == args.maxdecomp - 1) {
                             return (args.status = ErrorCode::decomposition);
@@ -110,10 +114,9 @@ struct Rosenbrock {
                     args.h = hbar;
                 }
 
-                // Calculate stages
+                // Calculate stage vectors
                 for (size_t stage = 0; stage < P::S; ++stage) {
                     VarConc &sK = K[stage];
-                    VarConc fs;
                     if (stage == 0) {
                         LA::copy(fs, f0);
                     } else {
@@ -126,6 +129,7 @@ struct Rosenbrock {
                             }
                             double tau = t + args.h * P::Alpha[stage];
                             fun(fs, ubar, fix, tau);
+                            ++args.nfun;
                         }
                     }
                     LA::copy(sK, fs);
@@ -137,19 +141,17 @@ struct Rosenbrock {
                         double hGamma = args.h * P::Gamma[stage];
                         LA::axpy(sK, hGamma, dfdt);
                     }
-                    LA::solve(solver, sK);
+                    solver.solve(sK);
                     ++args.nsolve;
                 }  // Stage calculation
 
                 // New solution
-                VarConc udot;
                 LA::copy(udot, var);
                 for (size_t i = 0; i < P::S; ++i) {
                     LA::axpy(udot, P::M[i], K[i]);
                 }
 
                 // Estimate error
-                VarConc uerr;
                 LA::zero(uerr);
                 for (size_t i = 0; i < P::S; ++i) {
                     LA::axpy(uerr, P::E[i], K[i]);
@@ -172,7 +174,7 @@ struct Rosenbrock {
                     // Set step size for next iteration
                     hdot = std::max(args.hmin, std::min(hdot, std::max(args.hmax, tend - t0)));
                     args.h = reject ? std::min(hdot, args.h) : hdot;
-                    // exit loop
+                    // Exit step calcuation loop
                     break;
                 }
                 if (reject) {

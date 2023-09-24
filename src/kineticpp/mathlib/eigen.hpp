@@ -24,12 +24,12 @@ struct Eigen {
         using SparseLU = ::Eigen::SparseLU<SparseMatrix, ::Eigen::COLAMDOrdering<int>>;
 
         SparseMatrix A;
-        SparseLU solver;
+        SparseLU lu;
 
     public:
         Solver() : A(JacStruct::nrow, JacStruct::ncol) {}
 
-        bool decompose(Jacobian &Anz) {
+        auto decompose(Jacobian &Anz) {
             std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
             size_t rank = 0;
             JacStruct::for_ridx_cidx([&](auto i, auto j) {
@@ -37,12 +37,15 @@ struct Eigen {
                 ++rank;
             });
             A.setFromTriplets(triplets.begin(), triplets.end());
-            solver.analyzePattern(A);
-            solver.factorize(A);
-            return (solver.info() == ::Eigen::Success);
+            lu.analyzePattern(A);
+            lu.factorize(A);
+            return (lu.info() == ::Eigen::Success);
         }
 
-        auto solve(auto &x) { return solver.solve(x); }
+        auto solve(auto &x) {
+            x = lu.solve(x);
+            return (lu.info() == ::Eigen::Success);
+        }
     };
 
     static constexpr size_t size(auto &y) { return y.size(); }
@@ -83,11 +86,6 @@ struct Eigen {
             ++rank;
         });
     }
-
-    static bool decompose(Solver &solver, Jacobian &Anz) { return solver.decompose(Anz); }
-
-    static void solve(Solver &solver, auto &x) { x = solver.solve(x); }
 };
-
 
 }  // namespace kineticpp::mathlib
