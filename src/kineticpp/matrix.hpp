@@ -18,10 +18,12 @@ struct CsrMatrix {
 
     static constexpr size_t nrow = NR;
     static constexpr size_t ncol = NC;
+    static constexpr size_t ndiag = std::min(nrow, ncol);
     static constexpr size_t nnz = NNZ;
 
     const std::array<index_type, nrow + 1> ridx;
     const std::array<index_type, nnz> cols;
+    const std::array<index_type, ndiag> diag;
     const std::array<value_type, nnz> vals;
 
     constexpr value_type operator[](index_type row, index_type col) const {

@@ -183,19 +183,23 @@ private:
 
     template <bool lhs, bool rhs>
     static constexpr auto build_stoich_csr() {
-        constexpr size_t rowsize = (lhs && rhs) ? nvar : nspc;
+        constexpr size_t ncols = (lhs && rhs) ? nvar : nspc;
         constexpr size_t nz = count_stoich_nz<lhs, rhs>();
+        constexpr size_t ndiag = std::min(nrct, ncols);
 
         std::array<size_t, nrct + 1> ridx;
         std::array<size_t, nz> cols;
-        std::array<size_t, std::min(nrct, rowsize)> diag;
+        std::array<size_t, ndiag> diag;
         std::array<double, nz> vals;
+
+        // Diagonal indices are unused in stoichiometric matrices
+        std::fill(diag.begin(), diag.end(), nz);
 
         size_t vals_idx = 0;
         size_t ridx_idx = 0;
         foreach(
             [&](auto rct) {
-                std::array<double, rowsize> row;
+                std::array<double, ncols> row;
                 row.fill(0);
                 if constexpr (lhs && rhs) {
                     for (auto &term : equation_terms(rct.eqn.lhs)) {
@@ -217,18 +221,19 @@ private:
                         row[spc_num(term.first)] += term.second;
                     }
                 }
-                ridx[ridx_idx++] = vals_idx;
+                ridx[ridx_idx] = vals_idx;
                 for (size_t j = 0; j < row.size(); ++j) {
                     if (is_nonzero(row[j])) {
                         vals[vals_idx] = row[j];
                         cols[vals_idx] = j;
-                        vals_idx++;
+                        ++vals_idx;
                     }
                 }
+                ++ridx_idx;
             },
             React...);
         ridx[ridx_idx] = nz;
-        return CsrMatrix<double, nrct, rowsize, nz> {ridx, cols, vals};
+        return CsrMatrix<double, nrct, ncols, nz> {ridx, cols, diag, vals};
     }
 
     static constexpr size_t count_jac_nz() {
@@ -251,6 +256,7 @@ private:
 
         std::array<size_t, nvar + 1> ridx;
         std::array<size_t, nz> cols;
+        std::array<size_t, nvar> diag;
         std::array<bool, nz> vals;
 
         size_t vals_idx = 0;
@@ -270,17 +276,23 @@ private:
                     }
                 }
             }
-            ridx[ridx_idx++] = vals_idx;
+            ridx[ridx_idx] = vals_idx;
             for (size_t j = 0; j < row.size(); ++j) {
-                if (row[j]) {
+                if (i == j) {
                     vals[vals_idx] = row[j];
                     cols[vals_idx] = j;
-                    vals_idx++;
+                    diag[ridx_idx] = vals_idx;
+                    ++vals_idx;
+                } else if (row[j]) {
+                    vals[vals_idx] = row[j];
+                    cols[vals_idx] = j;
+                    ++vals_idx;
                 }
             }
+            ++ridx_idx;
         }
         ridx[ridx_idx] = nz;
-        return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, vals};
+        return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
     }
 
     static constexpr size_t spc_num(species_id_type id) {
