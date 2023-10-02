@@ -69,7 +69,8 @@ struct Rosenbrock {
         // Time integration
         while (t < tend) {
             if (args.nstep++ > args.maxstep) {
-                return (args.status = ErrorCode::iterations);
+                args.status = ErrorCode::iterations;
+                return args.status;
             }
             args.h = std::min(args.h, std::abs(tend - t));
 
@@ -94,22 +95,22 @@ struct Rosenbrock {
                 LA::iama(hgimj, 1.0 / (args.h * P::Gamma[0]), j0);
 
                 // Calculate LU decomposition of step matrix
-                auto decomp_succcess = solver.decompose(hgimj);
-                ++args.ndecomp;
-
                 // If decomposition fails, reduce step size and retry
-                if (!decomp_succcess) {
+                ++args.ndecomp;
+                if (!solver.decompose(hgimj)) {
                     double hbar = args.h * args.hfac;
-                    for (size_t ndecomp = 1; ndecomp < args.maxdecomp; ++ndecomp) {
+                    size_t retry = 0;
+                    while (true) {
                         LA::iama(hgimj, 1.0 / (hbar * P::Gamma[0]), j0);
-                        auto decomp_succcess = solver.decompose(hgimj);
                         ++args.ndecomp;
-                        if (decomp_succcess) {
+                        if (solver.decompose(hgimj)) {
                             break;
-                        } else if (ndecomp == args.maxdecomp - 1) {
-                            return (args.status = ErrorCode::decomposition);
+                        } else if (retry == (args.maxdecomp - 1)) {
+                            args.status = ErrorCode::decomposition;
+                            return args.status;
                         }
                         hbar *= args.hfac;
+                        ++retry;
                     }
                     args.h = hbar;
                 }
@@ -167,7 +168,7 @@ struct Rosenbrock {
                 // New step size
                 double hdot =
                     args.h * std::min(args.facmax, std::max(args.facmin, args.facsafe / std::pow(err, 1.0 / P::ELO)));
-                if ((err <= 1.0) || (args.h < args.hmin)) {
+                if ((err <= 1.0) || (args.h <= args.hmin)) {
                     // Accept step and update solution
                     LA::copy(var, udot, args.scrub);
                     t += args.h;
@@ -193,7 +194,8 @@ struct Rosenbrock {
         }      // while (t <= tend)
 
         // Integration successful
-        return (args.status = ErrorCode::success);
+        args.status = ErrorCode::success;
+        return args.status;
     }  // Integrate
 
 };  // class Rosenbrock
