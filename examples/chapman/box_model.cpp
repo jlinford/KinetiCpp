@@ -23,39 +23,6 @@ int main(int argc, char **argv) {
     // integrator implemented with Eigen dense matrices
     using Model = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::StdCpp>;
 
-    using js = photo_chem::Chapman::jac_lu_struct;
-    for (size_t i = 0; i < js::nrow; ++i) {
-        for (size_t j = 0; j < js::ncol; ++j) {
-            std::cout << js::value(i, j) << "  ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << js::nnz << std::endl;
-    // return 0;
-
-    // int LU_IROW[] = {0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
-
-    // int LU_ICOL[] = {0, 2, 0, 1, 2, 4, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4};
-
-    // std::array<int, 25> LUJ;
-    // LUJ.fill(0);
-    // for (size_t i=0; i<19; ++i) {
-    //     int row = LU_IROW[i];
-    //     int col = LU_ICOL[i];
-    //     LUJ[row*5+col] = 1;
-    // }
-
-    std::cout << "===================" << std::endl;
-    // for (size_t i=0; i<5; ++i) {
-    //     for (size_t j=0; j<5; ++j) {
-    //         std::cout << LUJ[i*5+j] << "  ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // return 0;
-
-
     // Initial concentrations.
     // Species order is specified at mechanism definition
     Model::VarConc var {
