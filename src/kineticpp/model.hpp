@@ -9,43 +9,44 @@
 
 namespace kineticpp {
 
-template <typename T, typename Mech, template <typename, typename, typename, typename> typename S,
-          template <typename, typename> typename LA>
+template <typename T, typename Mech, template <typename...> typename S, template <typename...> typename LA>
 struct Model {
 
     using Scalar = T;
     using Timestep = double;
-    using MathLib = LA<T, typename Mech::jac_struct>;
+    using MathLib = LA<T, typename Mech::jac_struct, typename Mech::jac_lu_struct>;
     using VarConc = typename MathLib::Vector<Mech::nvar>;
     using FixConc = typename MathLib::Vector<Mech::nfix>;
     using Jacobian = typename MathLib::Jacobian;
     using Solver = S<MathLib, VarConc, FixConc, Jacobian>;
     using SolverArgs = Solver::Args;
 
-    static auto solve(VarConc &var, const FixConc &fix, const Timestep t0, const Timestep tend,
-                      SolverArgs *args = NULL) {
-        SolverArgs default_args;
-        if (!args) {
-            args = &default_args;
-        } 
-        return Solver::integrate(fun, jac, var, fix, t0, tend, *args);
+    static auto solve(VarConc &var, const FixConc &fix, const Timestep t0, const Timestep tend, SolverArgs &args) {
+        return Solver::integrate(fun, jac, var, fix, t0, tend, args);
     }
 
-    static auto solve(auto before_solve, VarConc &var, const FixConc &fix, const Timestep t0, const Timestep tend,
-                      const Timestep dt, SolverArgs *args = NULL) {
+    static auto solve(VarConc &var, const FixConc &fix, const Timestep t0, const Timestep tend) {
         SolverArgs default_args;
+        return solve(var, fix, t0, tend, default_args);
+    }
+
+    static auto solve(VarConc &var, const FixConc &fix, const Timestep t0, const Timestep tend, const Timestep dt,
+                      SolverArgs &args, auto before_solve) {
         size_t step = 0;
-        if (!args) {
-            args = &default_args;
-        }
         for (Timestep t = t0; t < tend; t += dt, ++step) {
-            before_solve(step, t, var, fix);
+            before_solve(step, t, var, fix, args);
             auto errcode = solve(var, fix, t, t + dt, args);
             if (errcode != solver::ErrorCode::success) {
                 return errcode;
             }
         }
         return solver::ErrorCode::success;
+    }
+
+    static auto solve(VarConc &var, const FixConc &fix, const Timestep t0, const Timestep tend, const Timestep dt,
+                      auto before_solve) {
+        SolverArgs default_args;
+        return solve(var, fix, t0, tend, dt, default_args, before_solve);
     }
 
     static void fun(VarConc &du, const VarConc &var, const FixConc &fix, const Timestep t) {
@@ -87,8 +88,7 @@ struct Model {
         };
 
         std::array<Scalar, lhs::nnz> B;
-        size_t rank = 0;
-        lhs::for_ridx_cidx([&](auto k, auto j) {
+        lhs::for_ridx_cidx_rank([&](auto k, auto j, auto rank) {
             Scalar B_kj = static_cast<Scalar>(rates[k]);
             lhs::for_cidx_val_in_row(k, [&](auto jj, auto lhs_kjj) {
                 if constexpr (jj == j) {
@@ -105,11 +105,10 @@ struct Model {
                     }
                 }
             });
-            B[rank++] = B_kj;
+            B[rank] = B_kj;
         });
 
-        rank = 0;
-        jac_struct::for_ridx_cidx([&](auto i, auto j) {
+        jac_struct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
             Scalar sum = 0;
             for_constexpr<0, Mech::nrct>([&](auto k) {
                 constexpr Scalar A_ki = agg::value(k, i);
@@ -118,7 +117,7 @@ struct Model {
                     sum += A_ki * B_kj;
                 }
             });
-            J[rank++] = sum;
+            J[rank] = sum;
         });
     }
 

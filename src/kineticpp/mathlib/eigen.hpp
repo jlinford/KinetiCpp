@@ -9,15 +9,14 @@
 
 namespace kineticpp::mathlib {
 
-template <typename T, typename JS>
+template <typename T, typename JacStruct, typename JacLUStruct>
 struct Eigen {
 
     template <size_t N>
     using Vector = ::Eigen::Matrix<T, N, 1>;
 
     using Scalar = T;
-    using JacStruct = JS;
-    using Jacobian = Vector<JS::nnz>;
+    using Jacobian = Vector<JacStruct::nnz>;
 
     class Solver {
         using SparseMatrix = ::Eigen::SparseMatrix<T>;
@@ -27,34 +26,56 @@ struct Eigen {
         SparseLU lu;
 
     public:
-        Solver() : A(JacStruct::nrow, JacStruct::ncol) {}
-
-        auto decompose(Jacobian &Anz) {
+        Solver() : A(JacStruct::nrow, JacStruct::ncol) {
             std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
-            size_t rank = 0;
-            JacStruct::for_ridx_cidx([&](auto i, auto j) {
-                triplets[rank] = {i, j, Anz[rank]};
-                ++rank;
+            JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
+                triplets[rank] = {i, j, 1.0};
             });
             A.setFromTriplets(triplets.begin(), triplets.end());
             lu.analyzePattern(A);
+        }
+
+        bool decompose(Jacobian &J) {
+            std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
+            JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
+                triplets[rank] = {i, j, J[rank]};
+            });
+            A.setFromTriplets(triplets.begin(), triplets.end());
             lu.factorize(A);
             return (lu.info() == ::Eigen::Success);
         }
 
-        auto solve(auto &x) {
+        bool solve(Vector<JacLUStruct::nrow> &x) {
+            // for (size_t i = 0; i < x.size(); ++i) {
+            //     std::cout << "x[" << i << "] = " << x[i] << std::endl;
+            // }
+            // std::cout << "=====================" << std::endl;
+
             x = lu.solve(x);
+
+            // for (size_t i = 0; i < x.size(); ++i) {
+            //     std::cout << "x[" << i << "] = " << x[i] << std::endl;
+            // }
+            // exit(1);
+
             return (lu.info() == ::Eigen::Success);
         }
     };
 
-    static constexpr size_t size(auto &y) { return y.size(); }
+    template <auto N>
+    static constexpr size_t size(Vector<N> &y) {
+        return y.size();
+    }
 
     // y <- 0
-    static void zero(auto &y) { y.setZero(); }
+    template <auto N>
+    static void zero(Vector<N> &y) {
+        y.setZero();
+    }
 
     // y <- x
-    static void copy(auto &y, const auto &x, bool scrub = false) {
+    template <auto N>
+    static void copy(Vector<N> &y, const Vector<N> &x, bool scrub = false) {
         if (scrub) {
             for (size_t i = 0; i < y.size(); ++i) {
                 auto x_i = x(i);
@@ -66,24 +87,31 @@ struct Eigen {
     }
 
     // y <- alpha * y
-    static void scale(auto &y, const auto alpha) { y *= alpha; }
+    template <auto N>
+    static void scale(Vector<N> &y, const Scalar alpha) {
+        y *= alpha;
+    }
 
     // y <- alpha * (y - x)
-    static void aymx(auto &y, const auto alpha, const auto &x) { y = alpha * (y - x); }
+    template <auto N>
+    static void aymx(Vector<N> &y, const Scalar alpha, const Vector<N> &x) {
+        y = alpha * (y - x);
+    }
 
     // y <- alpha * x + y
-    static void axpy(auto &y, const auto alpha, const auto &x) { y = alpha * x + y; }
+    template <auto N>
+    static void axpy(Vector<N> &y, const Scalar alpha, const Vector<N> &x) {
+        y = alpha * x + y;
+    }
 
     // B <- I*alpha - A
-    static void iama(Jacobian &B, auto const alpha, const Jacobian &A) {
-        size_t rank = 0;
-        JacStruct::for_ridx_cidx([&](auto i, auto j) {
+    static void iama(Jacobian &B, const Scalar alpha, const Jacobian &A) {
+        JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
             if constexpr (i == j) {
                 B[rank] = alpha - A[rank];
             } else {
                 B[rank] = -A[rank];
             }
-            ++rank;
         });
     }
 };

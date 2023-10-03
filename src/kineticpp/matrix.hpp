@@ -63,14 +63,25 @@ struct ConstexprCsrMatrix {
 
     static constexpr size_t nrow = csr.nrow;
     static constexpr size_t ncol = csr.ncol;
+    static constexpr size_t ndiag = csr.ndiag;
     static constexpr size_t nnz = csr.nnz;
 
-    static constexpr auto value(auto row, auto col) { return csr[row, col]; }
+    static constexpr value_type value(auto row, auto col) { return csr[row, col]; }
 
-    static constexpr auto rank(auto row, auto col) { return csr.rank(row, col); }
+    static constexpr index_type rank(auto row, auto col) { return csr.rank(row, col); }
+
+    static constexpr index_type ridx(auto row) { return csr.ridx[row]; }
+
+    static constexpr index_type diag(auto row) { return csr.diag[row]; }
 
     static constexpr void for_ridx(auto &&body) {
         for_constexpr<0, csr.nrow>([&](auto i) {
+            body(constexpr_index<i> {});
+        });
+    }
+
+    static constexpr void for_ridx_reversed(auto &&body) {
+        for_constexpr<csr.nrow, 0>([&](auto i) {
             body(constexpr_index<i> {});
         });
     }
@@ -91,6 +102,14 @@ struct ConstexprCsrMatrix {
         });
     }
 
+    static constexpr void for_ridx_cidx_rank(auto &&body) {
+        for_constexpr<0, csr.nrow>([&](auto i) {
+            for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
+                body(constexpr_index<i> {}, constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
+            });
+        });
+    }
+
     static constexpr void for_cidx_in_row(auto row, auto &&body) {
         for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {});
@@ -100,6 +119,24 @@ struct ConstexprCsrMatrix {
     static constexpr void for_cidx_val_in_row(auto row, auto &&body) {
         for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {}, constexpr_value<csr.vals[ii]> {});
+        });
+    }
+
+    static constexpr void for_cidx_rank_in_row(auto row, auto &&body) {
+        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
+            body(constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
+        });
+    }
+
+    static constexpr void for_cidx_rank_below_diag(auto row, auto &&body) {
+        for_constexpr<csr.ridx[row], csr.diag[row]>([&](auto ii) {
+            body(constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
+        });
+    }
+
+    static constexpr void for_cidx_rank_above_diag(auto row, auto &&body) {
+        for_constexpr<csr.diag[row] + 1, csr.ridx[row + 1]>([&](auto ii) {
+            body(constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
         });
     }
 };

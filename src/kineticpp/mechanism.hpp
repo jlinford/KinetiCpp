@@ -295,6 +295,59 @@ private:
         return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
     }
 
+    static constexpr auto dense_jac_lu_struct() {
+        std::array<bool, nvar * nvar> dense;
+        dense.fill(false);
+
+        jac_struct::for_ridx_cidx([&](auto i, auto j) {
+            dense[i * nvar + j] = true;
+        });
+
+        for (size_t j = 0; j < nvar - 1; ++j) {
+            for (size_t i = j + 1; i < nvar; ++i) {
+                if (dense[i * nvar + j]) {
+                    for (size_t k = j; k < nvar; ++k) {
+                        if (dense[j * nvar + k]) {
+                            dense[i * nvar + k] = true;
+                        }
+                    }
+                }
+            }
+        }
+        return dense;
+    }
+
+    static constexpr auto build_jac_lu_struct() {
+        constexpr auto dense = dense_jac_lu_struct();
+        constexpr size_t nz = std::count(dense.begin(), dense.end(), true);
+
+        std::array<size_t, nvar + 1> ridx;
+        std::array<size_t, nz> cols;
+        std::array<size_t, nvar> diag;
+        std::array<bool, nz> vals;
+
+        size_t vals_idx = 0;
+        size_t ridx_idx = 0;
+        for (size_t i = 0; i < nvar; ++i) {
+            ridx[ridx_idx] = vals_idx;
+            for (size_t j = 0; j < nvar; ++j) {
+                if (i == j) {
+                    vals[vals_idx] = dense[i*nvar+j];
+                    cols[vals_idx] = j;
+                    diag[ridx_idx] = vals_idx;
+                    ++vals_idx;
+                } else if (dense[i*nvar+j]) {
+                    vals[vals_idx] = dense[i*nvar+j];
+                    cols[vals_idx] = j;
+                    ++vals_idx;
+                }
+            }
+            ++ridx_idx;
+        }
+        ridx[ridx_idx] = nz;
+        return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
+    }
+
     static constexpr size_t spc_num(species_id_type id) {
         auto it = std::find(spc_index.begin(), spc_index.end(), id);
         return it - spc_index.begin();
@@ -318,12 +371,14 @@ public:
     using rhs_stoich = ConstexprCsrMatrix<build_stoich_csr<false, true>()>;
     using agg_stoich = ConstexprCsrMatrix<build_stoich_csr<true, true>()>;
     using jac_struct = ConstexprCsrMatrix<build_jac_struct()>;
+    using jac_lu_struct = ConstexprCsrMatrix<build_jac_lu_struct()>;
 
     static constexpr size_t nvar = Var.size();
     static constexpr size_t nfix = Fix.size();
     static constexpr size_t nspc = nvar + nfix;
     static constexpr size_t nrct = sizeof...(React);
-    static constexpr size_t njac = count_jac_nz();
+    static constexpr size_t njac = jac_struct::nnz;
+    static constexpr size_t njac_lu = jac_lu_struct::nnz;
 };
 
 }  // namespace kineticpp

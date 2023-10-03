@@ -8,7 +8,7 @@
 
 #include <cmath>
 #include <iostream>
-#include <kineticpp/mathlib/eigen.hpp>
+#include <kineticpp/mathlib/stdcpp.hpp>
 #include <kineticpp/model.hpp>
 #include <kineticpp/solver/rosenbrock.hpp>
 
@@ -21,8 +21,40 @@ int main(int argc, char **argv) {
     // Define a model of a chemical mechanism.
     // Use the Chapman-like mechanism with a Ros4 implicit time stepping
     // integrator implemented with Eigen dense matrices
-    using Model =
-        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::Eigen>;
+    using Model = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::StdCpp>;
+
+    using js = photo_chem::Chapman::jac_lu_struct;
+    for (size_t i = 0; i < js::nrow; ++i) {
+        for (size_t j = 0; j < js::ncol; ++j) {
+            std::cout << js::value(i, j) << "  ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << js::nnz << std::endl;
+    // return 0;
+
+    // int LU_IROW[] = {0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
+
+    // int LU_ICOL[] = {0, 2, 0, 1, 2, 4, 0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4};
+
+    // std::array<int, 25> LUJ;
+    // LUJ.fill(0);
+    // for (size_t i=0; i<19; ++i) {
+    //     int row = LU_IROW[i];
+    //     int col = LU_ICOL[i];
+    //     LUJ[row*5+col] = 1;
+    // }
+
+    std::cout << "===================" << std::endl;
+    // for (size_t i=0; i<5; ++i) {
+    //     for (size_t j=0; j<5; ++j) {
+    //         std::cout << LUJ[i*5+j] << "  ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    // return 0;
+
 
     // Initial concentrations.
     // Species order is specified at mechanism definition
@@ -48,19 +80,16 @@ int main(int argc, char **argv) {
 
     // Time integration
     // Use callback to report concentrations
-    Model::SolverArgs args;
-    auto errcode = Model::solve(
-        [&](auto &step, auto &t, auto &var, auto &fix) {
-            std::cout << step << ";" << t << ";" << args.h << ";";
-            for (auto &x : var) {
-                std::cout << x << ";";
-            }
-            for (auto &x : fix) {
-                std::cout << x << ";";
-            }
-            std::cout << std::endl;
-        },
-        var, fix, t0, tend, dt, &args);
+    auto errcode = Model::solve(var, fix, t0, tend, dt, [](auto &step, auto &t, auto &var, auto &fix, auto &args) {
+        std::cout << step << ";" << t << ";" << args.h << ";";
+        for (auto &x : var) {
+            std::cout << x << ";";
+        }
+        for (auto &x : fix) {
+            std::cout << x << ";";
+        }
+        std::cout << std::endl;
+    });
 
     // How'd it go?
     std::cout << kineticpp::solver::explain(errcode) << std::endl;
