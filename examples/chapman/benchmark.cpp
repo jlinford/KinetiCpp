@@ -10,8 +10,8 @@
 #include <cmath>
 #include <iostream>
 
-#include <kineticpp/mathlib/eigen.hpp>
-#include <kineticpp/mathlib/stdcpp.hpp>
+#include <kineticpp/math/eigen.hpp>
+#include <kineticpp/math/stdcpp.hpp>
 #include <kineticpp/model.hpp>
 #include <kineticpp/solver/rosenbrock.hpp>
 
@@ -69,13 +69,14 @@ void benchmark_model() {
 
 int main(int argc, char **argv) {
 
+    using chapman_eigen = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::math::Eigen>;
+    using chapman_stdcpp = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::math::StdCpp>;
+
     std::cout << "Eigen" << std::endl;
-    benchmark_model<
-        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::Eigen>>();
+    benchmark_model<chapman_eigen>();
 
     std::cout << "StdCpp" << std::endl;
-    benchmark_model<
-        kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::StdCpp>>();
+    benchmark_model<chapman_stdcpp>();
 
     return EXIT_SUCCESS;
 }

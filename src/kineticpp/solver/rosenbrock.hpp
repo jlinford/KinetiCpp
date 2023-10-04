@@ -7,11 +7,10 @@
 #include <cmath>
 #include <limits>
 
-#include "status.hpp"
+#include <kineticpp/solver/status.hpp>
 
 
-namespace kineticpp {
-namespace solver {
+namespace kineticpp::solver {
 
 
 template <typename P, typename LA, typename VarConc, typename FixConc, typename Jacobian>
@@ -296,5 +295,4 @@ template <typename... Ts>
 using Ros4 = Rosenbrock<rosenbrock_parameters::Ros4, Ts...>;
 
 
-}  // namespace solver
-}  // namespace kineticpp
+}  // namespace kineticpp::solver

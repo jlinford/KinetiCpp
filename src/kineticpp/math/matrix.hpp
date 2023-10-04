@@ -6,10 +6,10 @@
 #include <array>
 #include <type_traits>
 
-#include "util.hpp"
+#include <kineticpp/util.hpp>
 
 
-namespace kineticpp {
+namespace kineticpp::math {
 
 template <typename T, size_t NR, size_t NC, size_t NNZ>
 struct CsrMatrix {
@@ -75,71 +75,71 @@ struct ConstexprCsrMatrix {
     static constexpr index_type diag(auto row) { return csr.diag[row]; }
 
     static constexpr void for_ridx(auto &&body) {
-        for_constexpr<0, csr.nrow>([&](auto i) {
+        util::for_constexpr<0, csr.nrow>([&](auto i) {
             body(constexpr_index<i> {});
         });
     }
 
     static constexpr void for_ridx_reversed(auto &&body) {
-        for_constexpr<csr.nrow, 0>([&](auto i) {
+        util::for_constexpr<csr.nrow, 0>([&](auto i) {
             body(constexpr_index<i> {});
         });
     }
 
     static constexpr void for_ridx_cidx(auto &&body) {
-        for_constexpr<0, csr.nrow>([&](auto i) {
-            for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
+        util::for_constexpr<0, csr.nrow>([&](auto i) {
+            util::for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
                 body(constexpr_index<i> {}, constexpr_index<csr.cols[ii]> {});
             });
         });
     }
 
     static constexpr void for_ridx_cidx_val(auto &&body) {
-        for_constexpr<0, csr.nrow>([&](auto i) {
-            for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
+        util::for_constexpr<0, csr.nrow>([&](auto i) {
+            util::for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
                 body(constexpr_index<i> {}, constexpr_index<csr.cols[ii]> {}, constexpr_value<csr.vals[ii]> {});
             });
         });
     }
 
     static constexpr void for_ridx_cidx_rank(auto &&body) {
-        for_constexpr<0, csr.nrow>([&](auto i) {
-            for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
+        util::for_constexpr<0, csr.nrow>([&](auto i) {
+            util::for_constexpr<csr.ridx[i], csr.ridx[i + 1]>([&](auto ii) {
                 body(constexpr_index<i> {}, constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
             });
         });
     }
 
     static constexpr void for_cidx_in_row(auto row, auto &&body) {
-        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
+        util::for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {});
         });
     }
 
     static constexpr void for_cidx_val_in_row(auto row, auto &&body) {
-        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
+        util::for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {}, constexpr_value<csr.vals[ii]> {});
         });
     }
 
     static constexpr void for_cidx_rank_in_row(auto row, auto &&body) {
-        for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
+        util::for_constexpr<csr.ridx[row], csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
         });
     }
 
     static constexpr void for_cidx_rank_below_diag(auto row, auto &&body) {
-        for_constexpr<csr.ridx[row], csr.diag[row]>([&](auto ii) {
+        util::for_constexpr<csr.ridx[row], csr.diag[row]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
         });
     }
 
     static constexpr void for_cidx_rank_above_diag(auto row, auto &&body) {
-        for_constexpr<csr.diag[row] + 1, csr.ridx[row + 1]>([&](auto ii) {
+        util::for_constexpr<csr.diag[row] + 1, csr.ridx[row + 1]>([&](auto ii) {
             body(constexpr_index<csr.cols[ii]> {}, constexpr_index<ii> {});
         });
     }
 };
 
 
-}  // namespace kineticpp
+}  // namespace kineticpp::math

@@ -6,7 +6,7 @@
 #include <limits>
 #include <type_traits>
 
-namespace kineticpp {
+namespace kineticpp::util {
 
 template <typename T>
 requires std::is_floating_point_v<T>
@@ -38,27 +38,10 @@ static constexpr void for_constexpr(auto &&body) {
     }
 }
 
-// for (i=Start; i<End; i+=Inc)
-template <auto Start, auto End, auto Inc>
-static constexpr void for_constexpr(auto &&body) {
-    if constexpr (Start < End) {
-        body(std::integral_constant<size_t, Start>());
-        for_constexpr<Start + Inc, End, Inc>(body);
-    }
-}
-
 // for (auto x : [template_parameter_pack])
 template <typename... Args>
-static constexpr void foreach(auto &&body, Args &&...args) {
+static constexpr void for_constexpr(auto &&body, Args &&...args) {
     (body(std::forward<Args>(args)), ...);
 }
 
-// for (auto x : [template_parameter_pack]) with index
-template <typename... Args>
-static constexpr void indexed_foreach(auto &&body, Args &&...args) {
-    [&]<auto... Is>(std::index_sequence<Is...>) {
-        (body(std::integral_constant<size_t, Is>(), std::forward<Args>(args)), ...);
-    }(std::make_index_sequence<sizeof...(Args)> {});
-}
-
-}  // namespace kineticpp
+}  // namespace kineticpp::util

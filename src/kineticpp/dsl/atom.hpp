@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include "expression.hpp"
-#include <array>
 #include <cmath>
 #include <type_traits>
 
-namespace kineticpp {
-namespace atom {
+#include <kineticpp/dsl/expression.hpp>
+
+
+namespace kineticpp::dsl {
 
 // clang-format off
 enum AtomicSymbol : size_t
@@ -68,5 +68,4 @@ static constexpr double atomic_mass(Exponential<L, R> term) {
     return std::pow(atomic_mass(term.lhs), atomic_mass(term.rhs));
 }
 
-}  // namespace atom
-}  // namespace kineticpp
+}  // namespace kineticpp::dsl

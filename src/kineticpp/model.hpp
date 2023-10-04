@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "mechanism.hpp"
-#include "solver/status.hpp"
+#include <kineticpp/util.hpp>
+#include <kineticpp/solver/status.hpp>
 
 
 namespace kineticpp {
@@ -110,9 +110,9 @@ struct Model {
 
         jac_struct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
             Scalar sum = 0;
-            for_constexpr<0, Mech::nrct>([&](auto k) {
+            util::for_constexpr<0, Mech::nrct>([&](auto k) {
                 constexpr Scalar A_ki = agg::value(k, i);
-                if constexpr (is_nonzero(A_ki) && is_nonzero(lhs::value(k, j))) {
+                if constexpr (util::is_nonzero(A_ki) && util::is_nonzero(lhs::value(k, j))) {
                     Scalar B_kj = B[lhs::rank(k, j)];
                     sum += A_ki * B_kj;
                 }

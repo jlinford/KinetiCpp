@@ -10,6 +10,8 @@
 
 #include <cmath>
 
+#include <kineticpp/dsl.hpp>
+
 // Define a new chemical mechanism
 // The KinetiCpp DSL should always be used in a protective namespace
 namespace photo_chem {
@@ -29,14 +31,13 @@ static inline double sunlight(double seconds) {
 
 
 // Activate KinetiCpp DSL in this scope
-using namespace kineticpp;
-using namespace kineticpp::atom;
+using namespace kineticpp::dsl;
 
 // Disable auto-formatting while using KineiCpp DSL
 // clang-format off
 
 // Declare chemical species names
-enum S { O1D, O1, O3, NO, NO2, M, O2 };
+enum { O1D, O1, O3, NO, NO2, M, O2 };
 
 using Chapman = Mechanism <
     // Variable species concentrations change according to the law of mass action kinetics

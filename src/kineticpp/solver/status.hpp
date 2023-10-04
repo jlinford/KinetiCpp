@@ -3,15 +3,14 @@
 
 #pragma once
 
-namespace kineticpp::solver {
 
+namespace kineticpp::solver {
 
 enum struct ErrorCode : int {
     success = 0,
     iterations = -1,
     decomposition = -2,
 };
-
 
 static constexpr auto explain(ErrorCode code) {
     switch (code) {
@@ -25,6 +24,5 @@ static constexpr auto explain(ErrorCode code) {
         return "Unknown error code";
     }
 }
-
 
 }  // namespace kineticpp::solver

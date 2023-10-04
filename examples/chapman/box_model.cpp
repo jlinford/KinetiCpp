@@ -8,7 +8,8 @@
 
 #include <cmath>
 #include <iostream>
-#include <kineticpp/mathlib/stdcpp.hpp>
+
+#include <kineticpp/math/stdcpp.hpp>
 #include <kineticpp/model.hpp>
 #include <kineticpp/solver/rosenbrock.hpp>
 
@@ -21,7 +22,7 @@ int main(int argc, char **argv) {
     // Define a model of a chemical mechanism.
     // Use the Chapman-like mechanism with a Ros4 implicit time stepping
     // integrator implemented with Eigen dense matrices
-    using Model = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::mathlib::StdCpp>;
+    using Model = kineticpp::Model<double, photo_chem::Chapman, kineticpp::solver::Ros4, kineticpp::math::StdCpp>;
 
     // Initial concentrations.
     // Species order is specified at mechanism definition

@@ -10,53 +10,11 @@
 #include <limits>
 #include <type_traits>
 
-#include "atom.hpp"
-#include "expression.hpp"
-#include "matrix.hpp"
+#include <kineticpp/math/matrix.hpp>
+#include <kineticpp/util.hpp>
 
-namespace kineticpp {
 
-template <typename T>
-concept SpeciesId = std::is_enum_v<T>;
-
-template <SpeciesId ID>
-struct Species {
-    using type = Species<ID>;
-    using id_type = ID;
-
-    const id_type id;
-    const double mass;
-
-    constexpr operator id_type() const { return static_cast<id_type>(id); }
-};
-
-template <typename L, typename R>
-struct Equation {
-    const L lhs;
-    const R rhs;
-};
-
-template <typename L, typename R, typename Rate>
-struct Reaction {
-    const Equation<L, R> eqn;
-    const Rate rate;
-};
-
-template <typename ID, Term T>
-static constexpr auto operator||(ID lhs, T rhs) {
-    return Species<ID> {lhs, atom::atomic_mass(rhs)};
-}
-
-// template <Term L, Term R>
-template <typename L, typename R>
-static constexpr auto operator>=(L lhs, R rhs) {
-    return Equation<L, R> {lhs, rhs};
-}
-
-template <typename L, typename R, typename Rate>
-static constexpr auto operator||(Equation<L, R> lhs, Rate rhs) {
-    return Reaction<L, R, Rate> {lhs, rhs};
-}
+namespace kineticpp::dsl {
 
 template <typename S, size_t N>
 struct VariableSpecies : std::array<S, N> {};
@@ -151,7 +109,7 @@ private:
     template <bool lhs, bool rhs>
     static constexpr size_t count_stoich_nz() {
         size_t nz = 0;
-        foreach(
+        util::for_constexpr(
             [&](auto rct) {
                 std::array<bool, nspc> row;
                 row.fill(false);
@@ -197,7 +155,7 @@ private:
 
         size_t vals_idx = 0;
         size_t ridx_idx = 0;
-        foreach(
+        util::for_constexpr(
             [&](auto rct) {
                 std::array<double, ncols> row;
                 row.fill(0);
@@ -223,7 +181,7 @@ private:
                 }
                 ridx[ridx_idx] = vals_idx;
                 for (size_t j = 0; j < row.size(); ++j) {
-                    if (is_nonzero(row[j])) {
+                    if (util::is_nonzero(row[j])) {
                         vals[vals_idx] = row[j];
                         cols[vals_idx] = j;
                         ++vals_idx;
@@ -233,7 +191,7 @@ private:
             },
             React...);
         ridx[ridx_idx] = nz;
-        return CsrMatrix<double, nrct, ncols, nz> {ridx, cols, diag, vals};
+        return kineticpp::math::CsrMatrix<double, nrct, ncols, nz> {ridx, cols, diag, vals};
     }
 
     static constexpr size_t count_jac_nz() {
@@ -241,7 +199,7 @@ private:
         for (size_t i = 0; i < nvar; ++i) {
             for (size_t j = 0; j < nvar; ++j) {
                 for (size_t k = 0; k < nrct; ++k) {
-                    if (is_nonzero(agg_stoich::value(k, i)) && is_nonzero(lhs_stoich::value(k, j))) {
+                    if (util::is_nonzero(agg_stoich::value(k, i)) && util::is_nonzero(lhs_stoich::value(k, j))) {
                         ++nz;
                         break;
                     }
@@ -269,7 +227,7 @@ private:
                     row[j] = true;
                 } else {
                     for (size_t k = 0; k < nrct; ++k) {
-                        if (is_nonzero(agg_stoich::value(k, i)) && is_nonzero(lhs_stoich::value(k, j))) {
+                        if (util::is_nonzero(agg_stoich::value(k, i)) && util::is_nonzero(lhs_stoich::value(k, j))) {
                             row[j] = true;
                             break;
                         }
@@ -292,7 +250,7 @@ private:
             ++ridx_idx;
         }
         ridx[ridx_idx] = nz;
-        return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
+        return kineticpp::math::CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
     }
 
     static constexpr auto dense_jac_lu_struct() {
@@ -332,12 +290,12 @@ private:
             ridx[ridx_idx] = vals_idx;
             for (size_t j = 0; j < nvar; ++j) {
                 if (i == j) {
-                    vals[vals_idx] = dense[i*nvar+j];
+                    vals[vals_idx] = dense[i * nvar + j];
                     cols[vals_idx] = j;
                     diag[ridx_idx] = vals_idx;
                     ++vals_idx;
-                } else if (dense[i*nvar+j]) {
-                    vals[vals_idx] = dense[i*nvar+j];
+                } else if (dense[i * nvar + j]) {
+                    vals[vals_idx] = dense[i * nvar + j];
                     cols[vals_idx] = j;
                     ++vals_idx;
                 }
@@ -345,7 +303,7 @@ private:
             ++ridx_idx;
         }
         ridx[ridx_idx] = nz;
-        return CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
+        return kineticpp::math::CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
     }
 
     static constexpr size_t spc_num(species_id_type id) {
@@ -367,11 +325,11 @@ private:
     static constexpr auto spc_index = declared_order();
 
 public:
-    using lhs_stoich = ConstexprCsrMatrix<build_stoich_csr<true, false>()>;
-    using rhs_stoich = ConstexprCsrMatrix<build_stoich_csr<false, true>()>;
-    using agg_stoich = ConstexprCsrMatrix<build_stoich_csr<true, true>()>;
-    using jac_struct = ConstexprCsrMatrix<build_jac_struct()>;
-    using jac_lu_struct = ConstexprCsrMatrix<build_jac_lu_struct()>;
+    using lhs_stoich = kineticpp::math::ConstexprCsrMatrix<build_stoich_csr<true, false>()>;
+    using rhs_stoich = kineticpp::math::ConstexprCsrMatrix<build_stoich_csr<false, true>()>;
+    using agg_stoich = kineticpp::math::ConstexprCsrMatrix<build_stoich_csr<true, true>()>;
+    using jac_struct = kineticpp::math::ConstexprCsrMatrix<build_jac_struct()>;
+    using jac_lu_struct = kineticpp::math::ConstexprCsrMatrix<build_jac_lu_struct()>;
 
     static constexpr size_t nvar = Var.size();
     static constexpr size_t nfix = Fix.size();
@@ -381,4 +339,4 @@ public:
     static constexpr size_t njac_lu = jac_lu_struct::nnz;
 };
 
-}  // namespace kineticpp
+}  // namespace kineticpp::dsl

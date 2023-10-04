@@ -5,9 +5,11 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+
 #include <kineticpp/util.hpp>
 
-namespace kineticpp::mathlib {
+
+namespace kineticpp::math {
 
 template <typename T, typename JacStruct, typename JacLUStruct>
 struct Eigen {
@@ -46,18 +48,7 @@ struct Eigen {
         }
 
         bool solve(Vector<JacLUStruct::nrow> &x) {
-            // for (size_t i = 0; i < x.size(); ++i) {
-            //     std::cout << "x[" << i << "] = " << x[i] << std::endl;
-            // }
-            // std::cout << "=====================" << std::endl;
-
             x = lu.solve(x);
-
-            // for (size_t i = 0; i < x.size(); ++i) {
-            //     std::cout << "x[" << i << "] = " << x[i] << std::endl;
-            // }
-            // exit(1);
-
             return (lu.info() == ::Eigen::Success);
         }
     };
@@ -79,7 +70,7 @@ struct Eigen {
         if (scrub) {
             for (size_t i = 0; i < y.size(); ++i) {
                 auto x_i = x(i);
-                y(i) = is_nonzero(x_i) ? x_i : 0;
+                y(i) = util::is_nonzero(x_i) ? x_i : 0;
             }
         } else {
             y = x;
@@ -116,4 +107,4 @@ struct Eigen {
     }
 };
 
-}  // namespace kineticpp::mathlib
+}  // namespace kineticpp::math

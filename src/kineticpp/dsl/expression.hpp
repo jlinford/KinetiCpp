@@ -3,9 +3,20 @@
 
 #pragma once
 
-namespace kineticpp {
+#include <concepts>
+#include <type_traits>
+
+
+namespace kineticpp::dsl {
 
 struct Expression {};
+
+template <typename T>
+concept Arithmetic = std::is_arithmetic_v<T>;
+
+template <typename T>
+concept Term = (std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_base_of_v<Expression, T>);
+
 
 template <typename L, typename R>
 struct BinaryOperator : public Expression {
@@ -29,12 +40,6 @@ struct Exponential : public BinaryOperator<L, R> {
     constexpr Exponential(L &lhs, R &rhs) : BinaryOperator<L, R>(lhs, rhs) {}
 };
 
-template <typename T>
-concept Arithmetic = std::is_arithmetic_v<T>;
-
-template <typename T>
-concept Term = (std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_base_of_v<Expression, T>);
-
 template <Term L, Term R>
 static constexpr auto operator+(L lhs, R rhs) {
     return Sum {lhs, rhs};
@@ -50,4 +55,4 @@ static constexpr auto operator^(L lhs, R rhs) {
     return Exponential {lhs, rhs};
 }
 
-}  // namespace kineticpp
+}  // namespace kineticpp::dsl

@@ -5,9 +5,11 @@
 
 #include <algorithm>
 #include <array>
+
 #include <kineticpp/util.hpp>
 
-namespace kineticpp::mathlib {
+
+namespace kineticpp::math {
 
 template <typename T, typename JacStruct, typename JacLUStruct>
 struct StdCpp {
@@ -24,7 +26,7 @@ struct StdCpp {
     public:
         bool decompose(Jacobian &J) {
             for (size_t i = 0; i < JacStruct::nrow; ++i) {
-                if (is_zero(J[JacStruct::diag(i)])) {
+                if (util::is_zero(J[JacStruct::diag(i)])) {
                     return false;
                 }
             }
@@ -88,7 +90,7 @@ struct StdCpp {
     static void copy(Vector<N> &y, const Vector<N> &x, bool scrub = false) {
         if (scrub) {
             std::transform(x.cbegin(), x.cend(), y.begin(), [](const auto &x_i) {
-                return (is_nonzero(x_i) ? x_i : 0);
+                return (util::is_nonzero(x_i) ? x_i : 0);
             });
         } else {
             std::copy(x.cbegin(), x.cend(), y.begin());
@@ -132,4 +134,4 @@ struct StdCpp {
 };
 
 
-}  // namespace kineticpp::mathlib
+}  // namespace kineticpp::math
