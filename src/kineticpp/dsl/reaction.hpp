@@ -42,7 +42,6 @@ static constexpr auto operator||(ID lhs, T rhs) {
     return Species<ID> {lhs, atomic_mass(rhs)};
 }
 
-// template <Term L, Term R>
 template <typename L, typename R>
 static constexpr auto operator>=(L lhs, R rhs) {
     return Equation<L, R> {lhs, rhs};

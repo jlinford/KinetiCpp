@@ -20,60 +20,6 @@ struct StdCpp {
     using Scalar = T;
     using Jacobian = Vector<JacStruct::nnz>;
 
-    class Solver {
-        Vector<JacLUStruct::nnz> jac_lu;
-
-    public:
-        bool decompose(Jacobian &J) {
-            for (size_t i = 0; i < JacStruct::nrow; ++i) {
-                if (util::is_zero(J[JacStruct::diag(i)])) {
-                    return false;
-                }
-            }
-            Vector<JacLUStruct::ncol> row;
-            JacLUStruct::for_ridx([&](auto i) {
-                JacLUStruct::for_cidx_rank_in_row(i, [&](auto j, auto rank) {
-                    if constexpr (JacStruct::value(i, j)) {
-                        row[j] = J[JacStruct::rank(i, j)];
-                    } else {
-                        row[j] = 0;
-                    }
-                });
-                JacLUStruct::for_cidx_rank_below_diag(i, [&](auto j, auto rank) {
-                    double a = -row[j] / jac_lu[JacLUStruct::diag(j)];
-                    row[j] = -a;
-                    JacLUStruct::for_cidx_rank_above_diag(j, [&](auto k, auto rank) {
-                        row[k] += a * jac_lu[rank];
-                    });
-                });
-                JacLUStruct::for_cidx_rank_in_row(i, [&](auto j, auto rank) {
-                    jac_lu[rank] = row[j];
-                });
-            });
-            return true;
-        }
-
-        bool solve(Vector<JacLUStruct::nrow> &x) {
-            JacLUStruct::for_ridx([&](auto i) {
-                if constexpr (JacLUStruct::ridx(i) < JacLUStruct::diag(i)) {
-                    double sum = x[i];
-                    JacLUStruct::for_cidx_rank_below_diag(i, [&](auto j, auto rank) {
-                        sum -= jac_lu[rank] * x[j];
-                    });
-                    x[i] = sum;
-                }
-            });
-            JacLUStruct::for_ridx_reversed([&](auto i) {
-                double sum = x[i];
-                JacLUStruct::for_cidx_rank_above_diag(i, [&](auto j, auto rank) {
-                    sum -= jac_lu[rank] * x[j];
-                });
-                x[i] = sum / jac_lu[JacLUStruct::diag(i)];
-            });
-            return true;
-        }
-    };
-
     template <size_t N>
     static constexpr size_t size(Vector<N> &y) {
         return y.size();
@@ -131,7 +77,60 @@ struct StdCpp {
             }
         });
     }
-};
 
+    class Solver {
+        Vector<JacLUStruct::nnz> jac_lu;
+
+    public:
+        bool decompose(Jacobian &J) {
+            for (size_t i = 0; i < JacStruct::nrow; ++i) {
+                if (util::is_zero(J[JacStruct::diag(i)])) {
+                    return false;
+                }
+            }
+            Vector<JacLUStruct::ncol> row;
+            JacLUStruct::for_ridx([&](auto i) {
+                JacLUStruct::for_cidx_rank_in_row(i, [&](auto j, auto rank) {
+                    if constexpr (JacStruct::value(i, j)) {
+                        row[j] = J[JacStruct::rank(i, j)];
+                    } else {
+                        row[j] = 0;
+                    }
+                });
+                JacLUStruct::for_cidx_rank_below_diag(i, [&](auto j, auto rank) {
+                    double a = -row[j] / jac_lu[JacLUStruct::diag(j)];
+                    row[j] = -a;
+                    JacLUStruct::for_cidx_rank_above_diag(j, [&](auto k, auto rank) {
+                        row[k] += a * jac_lu[rank];
+                    });
+                });
+                JacLUStruct::for_cidx_rank_in_row(i, [&](auto j, auto rank) {
+                    jac_lu[rank] = row[j];
+                });
+            });
+            return true;
+        }
+
+        bool solve(Vector<JacLUStruct::nrow> &x) {
+            JacLUStruct::for_ridx([&](auto i) {
+                if constexpr (JacLUStruct::ridx(i) < JacLUStruct::diag(i)) {
+                    double sum = x[i];
+                    JacLUStruct::for_cidx_rank_below_diag(i, [&](auto j, auto rank) {
+                        sum -= jac_lu[rank] * x[j];
+                    });
+                    x[i] = sum;
+                }
+            });
+            JacLUStruct::for_ridx_reversed([&](auto i) {
+                double sum = x[i];
+                JacLUStruct::for_cidx_rank_above_diag(i, [&](auto j, auto rank) {
+                    sum -= jac_lu[rank] * x[j];
+                });
+                x[i] = sum / jac_lu[JacLUStruct::diag(i)];
+            });
+            return true;
+        }
+    };
+};
 
 }  // namespace kineticpp::math

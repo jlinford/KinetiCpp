@@ -38,11 +38,11 @@ public:
     }
 
 private:
-    using species_type = decltype(Var)::value_type;
-    using species_id_type = species_type::id_type;
-    using term_type = std::pair<species_id_type, double>;
+    using Species = decltype(Var)::value_type;
+    using SpeciesID = Species::id_type;
+    using Term = std::pair<SpeciesID, double>;
 
-    static constexpr bool is_var_spc(species_id_type id) {
+    static constexpr bool is_var_spc(SpeciesID id) {
         auto it = std::find(Var.begin(), Var.end(), id);
         return it != Var.end();
     }
@@ -63,25 +63,25 @@ private:
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    static constexpr auto equation_terms(const species_id_type &expr) { return std::array {term_type {expr, 1.0}}; }
+    static constexpr auto equation_terms(const SpeciesID &expr) { return std::array {Term {expr, 1.0}}; }
 
     template <Arithmetic A>
-    static constexpr auto equation_terms(const Product<species_id_type, A> &expr) {
-        return std::array {term_type {expr.lhs, expr.rhs}};
+    static constexpr auto equation_terms(const Product<SpeciesID, A> &expr) {
+        return std::array {Term {expr.lhs, expr.rhs}};
     }
 
     template <Arithmetic A>
-    static constexpr auto equation_terms(const Product<A, species_id_type> &expr) {
-        return std::array {term_type {expr.rhs, expr.lhs}};
+    static constexpr auto equation_terms(const Product<A, SpeciesID> &expr) {
+        return std::array {Term {expr.rhs, expr.lhs}};
     }
 
     template <Arithmetic A, typename RHS>
     static constexpr auto equation_terms(const Product<A, RHS> &expr) {
         double coef = expr.lhs;
         auto rhs_terms = equation_terms(expr.rhs);
-        std::array<term_type, rhs_terms.size()> terms;
+        std::array<Term, rhs_terms.size()> terms;
         for (size_t i = 0; i < terms.size(); ++i) {
-            terms[i] = term_type {rhs_terms[i].first, coef * rhs_terms[i].second};
+            terms[i] = Term {rhs_terms[i].first, coef * rhs_terms[i].second};
         }
         return terms;
     }
@@ -90,9 +90,9 @@ private:
     static constexpr auto equation_terms(const Product<LHS, A> &expr) {
         auto lhs_terms = equation_terms(expr.lhs);
         double coef = expr.rhs;
-        std::array<term_type, lhs_terms.size()> terms;
+        std::array<Term, lhs_terms.size()> terms;
         for (size_t i = 0; i < terms.size(); ++i) {
-            terms[i] = term_type {lhs_terms[i].first, coef * lhs_terms[i].second};
+            terms[i] = Term {lhs_terms[i].first, coef * lhs_terms[i].second};
         }
         return terms;
     }
@@ -101,7 +101,7 @@ private:
     static constexpr auto equation_terms(const Sum<LHS, RHS> &sum) {
         auto lhs_terms = equation_terms(sum.lhs);
         auto rhs_terms = equation_terms(sum.rhs);
-        std::array<term_type, lhs_terms.size() + rhs_terms.size()> terms;
+        std::array<Term, lhs_terms.size() + rhs_terms.size()> terms;
         std::copy(rhs_terms.begin(), rhs_terms.end(), std::copy(lhs_terms.begin(), lhs_terms.end(), terms.begin()));
         return terms;
     }
@@ -306,18 +306,18 @@ private:
         return kineticpp::math::CsrMatrix<bool, nvar, nvar, nz> {ridx, cols, diag, vals};
     }
 
-    static constexpr size_t spc_num(species_id_type id) {
+    static constexpr size_t spc_num(SpeciesID id) {
         auto it = std::find(spc_index.begin(), spc_index.end(), id);
         return it - spc_index.begin();
     }
 
     static constexpr auto declared_order() {
-        std::array<species_id_type, nspc> order;
+        std::array<SpeciesID, nspc> order;
         for (size_t i = 0; i < Var.size(); ++i) {
-            order[i] = static_cast<species_id_type>(Var[i]);
+            order[i] = static_cast<SpeciesID>(Var[i]);
         }
         for (size_t i = 0; i < Fix.size(); ++i) {
-            order[nvar + i] = static_cast<species_id_type>(Fix[i]);
+            order[nvar + i] = static_cast<SpeciesID>(Fix[i]);
         }
         return order;
     }

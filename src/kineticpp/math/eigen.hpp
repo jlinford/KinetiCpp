@@ -20,39 +20,6 @@ struct Eigen {
     using Scalar = T;
     using Jacobian = Vector<JacStruct::nnz>;
 
-    class Solver {
-        using SparseMatrix = ::Eigen::SparseMatrix<T>;
-        using SparseLU = ::Eigen::SparseLU<SparseMatrix, ::Eigen::COLAMDOrdering<int>>;
-
-        SparseMatrix A;
-        SparseLU lu;
-
-    public:
-        Solver() : A(JacStruct::nrow, JacStruct::ncol) {
-            std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
-            JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
-                triplets[rank] = {i, j, 1.0};
-            });
-            A.setFromTriplets(triplets.begin(), triplets.end());
-            lu.analyzePattern(A);
-        }
-
-        bool decompose(Jacobian &J) {
-            std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
-            JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
-                triplets[rank] = {i, j, J[rank]};
-            });
-            A.setFromTriplets(triplets.begin(), triplets.end());
-            lu.factorize(A);
-            return (lu.info() == ::Eigen::Success);
-        }
-
-        bool solve(Vector<JacLUStruct::nrow> &x) {
-            x = lu.solve(x);
-            return (lu.info() == ::Eigen::Success);
-        }
-    };
-
     template <auto N>
     static constexpr size_t size(Vector<N> &y) {
         return y.size();
@@ -105,6 +72,39 @@ struct Eigen {
             }
         });
     }
+
+    class Solver {
+        using SparseMatrix = ::Eigen::SparseMatrix<T>;
+        using SparseLU = ::Eigen::SparseLU<SparseMatrix, ::Eigen::COLAMDOrdering<int>>;
+
+        SparseMatrix A;
+        SparseLU lu;
+
+    public:
+        Solver() : A(JacStruct::nrow, JacStruct::ncol) {
+            std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
+            JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
+                triplets[rank] = {i, j, 1.0};
+            });
+            A.setFromTriplets(triplets.begin(), triplets.end());
+            lu.analyzePattern(A);
+        }
+
+        bool decompose(Jacobian &J) {
+            std::array<::Eigen::Triplet<T>, JacStruct::nnz> triplets;
+            JacStruct::for_ridx_cidx_rank([&](auto i, auto j, auto rank) {
+                triplets[rank] = {i, j, J[rank]};
+            });
+            A.setFromTriplets(triplets.begin(), triplets.end());
+            lu.factorize(A);
+            return (lu.info() == ::Eigen::Success);
+        }
+
+        bool solve(Vector<JacLUStruct::nrow> &x) {
+            x = lu.solve(x);
+            return (lu.info() == ::Eigen::Success);
+        }
+    };
 };
 
 }  // namespace kineticpp::math
