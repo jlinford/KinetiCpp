@@ -11,8 +11,8 @@ jobs:
       - checkout
       # Replace this with a real test runner invocation
       - run:
-          name: Run tests
-          command: echo 'replace me with real tests!' && false
+          name: Show CPU info
+          command: cat /proc/cpuinfo
   build:
     docker:
       - image: cimg/base:stable
